@@ -49,8 +49,9 @@ void insert(PGconn *conn) {
 
 int main(int argc, char** argv) {
     PGconn *conn;
-    const char *conninfo;
-    int seed = MYMAGICN;
+    const char *conninfo;     // argv[1]
+    int seed = MYMAGICN;      // argv[2]
+    char querymode = 0;       // true if seed param < 0
     
     if (argc > 1)
       conninfo = argv[1];
@@ -60,23 +61,29 @@ int main(int argc, char** argv) {
       
     if (argc > 2)
       seed = atoi(argv[2]);
-    srand(seed);
+    if (seed < 0) {
+      querymode = 1;
+    } else 
+      srand(seed);
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
         printf ( "connection made\n" );
-        if (seed == MYMAGICN) {
-          doSQL ( conn, "DROP TABLE tbl1" );
-          doSQL ( conn, "CREATE TABLE tbl1 (id INTEGER, value INTEGER)" );
+        if (seed >= 0) {
+          if (seed == MYMAGICN) {
+            doSQL ( conn, "DROP TABLE tbl1" );
+            doSQL ( conn, "CREATE TABLE tbl1 (id INTEGER, value INTEGER)" );
+          }
+          sleep(1); // everyone wait for the table to be created
+          insert(conn);
+          insert(conn);
+          insert(conn);
+          insert(conn);
+          insert(conn);
+          insert(conn);
+        } else {
+          //~ doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 10" );
+          doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
         }
-        sleep(1); // everyone wait for the table to be created
-        insert(conn);
-        insert(conn);
-        insert(conn);
-        insert(conn);
-        insert(conn);
-        insert(conn);
-        //~ doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 10" );
-        doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
     }
 
     else

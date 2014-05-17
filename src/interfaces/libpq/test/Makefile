@@ -15,6 +15,7 @@ override LDLIBS := $(libpq_pgport) $(LDLIBS)
 PROGS = single
 
 all: $(PROGS)
+	cp single query
 
 clean: 
 	rm -f $(PROGS)
@@ -23,3 +24,4 @@ clean:
 run:
 	./single dbname=single 100 &
 	./single dbname=single 99 &
+	sleep 6 && ./query dbname=single -1
