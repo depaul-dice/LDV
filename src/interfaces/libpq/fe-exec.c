@@ -669,13 +669,20 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
 /*
  * ============ QUAN's hack ===============
  */
-int prv_hash(char *str);
-int prv_hash(char *str) { // djb2
-    int hash = 5381;
+typedef long long sll; // signed long long
+sll prv_hash(char *str);
+sll prv_hash(char *str) { // djb2
+    sll hash = 5381;
     int c;
     while ((c = *str++))
         hash = ((hash << 5) + hash) ^ c; /* hash * 33 + c */
+    if (hash < 0) hash=-hash;
     return hash;
+}
+
+void prv_store(sll insertid, int version, uint64_t timeus);
+void prv_store(sll insertid, int version, uint64_t timeus) {
+	fprintf(stderr, "prv_store_insert\t%d\t%lld\t%d\t%lu\n", getpid(), insertid, version, timeus);
 }
 
 /*
@@ -687,8 +694,8 @@ int prv_hash(char *str) { // djb2
  * 		if this is an insert, return query with provenance added
  * 		else return the original query
  */
-char *prv_makequery(const char *query, int insertid, int version);
-char *prv_makequery(const char *query, int insertid, int version) {
+char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeus);
+char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeus) {
 	char s[1000], *result, pad[32], *token;
 	char state;
 	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
@@ -714,10 +721,11 @@ char *prv_makequery(const char *query, int insertid, int version) {
 			token = strtok(NULL, " ");
 			if (token == NULL) {
 				result[strlen(result)-1] = '\0'; // remove the last ")"
-				sprintf(pad, ", %d, %d);\n", insertid, version);
+				sprintf(pad, ", %lld, %d);\n", insertid, version);
 				strcat(result, pad);
 			}
 		}
+		prv_store(insertid, version, timeus);
 		return result;
 	}
 	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
@@ -743,7 +751,7 @@ char *prv_makequery(const char *query, int insertid, int version) {
 			token = strtok(NULL, " ");
 			if (token == NULL) {
 				result[strlen(result)-1] = '\0'; // remove the last ")"
-				strcat(result, ", _prov_p INTEGER, _prov_v INTEGER);\n");
+				strcat(result, ", _prov_p BIGINT, _prov_v INTEGER);\n");
 			}
 		}
 		return result;
@@ -769,7 +777,7 @@ char *prv_addquery(const char *query) {
 	int pid;
 	struct timeval tv;
 	uint64_t timeus; 
-	int insertid;
+	long long insertid;
 	int version = 1; // version is always 1 for now
 	
 	// get pid
@@ -782,7 +790,7 @@ char *prv_addquery(const char *query) {
 	sprintf(astr, "%d.%s.%lu", pid, query, timeus);
 	insertid = prv_hash(astr);
 	
-	res = prv_makequery(query, insertid, version);
+	res = prv_makequery(query, insertid, version, timeus);
 	//~ printf("DEBUG: %s\n", res);
 	return res;
 }

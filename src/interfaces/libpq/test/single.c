@@ -51,6 +51,27 @@ void insert(PGconn *conn) {
   doSQL(conn, sqlStr);
 }
 
+void fakeio(char* pattern, int seed);
+void fakeio(char* pattern, int seed) {
+    
+    char path[100];
+    FILE *fd;
+    
+    // fake input
+    sprintf(path, pattern, "input", seed);
+    printf("read file %s\n", path);
+    fd = fopen(path, "r");
+    if (fd != NULL)
+        fclose(fd);
+
+    // fake output
+    sprintf(path, pattern, "output", seed);
+    printf("write file %s\n", path);
+    fd = fopen(path, "w");
+    if (fd != NULL)
+        fclose(fd);
+}
+
 int main(int argc, char** argv) {
     PGconn *conn;
     const char *conninfo;     // argv[1]
@@ -65,10 +86,12 @@ int main(int argc, char** argv) {
       
     if (argc > 2)
       seed = atoi(argv[2]);
-    if (seed < 0) {
+    if (seed <= 0) {
       insertmode = 0;
     } else 
       srand(seed);
+      
+    fakeio("%s.before.%d.txt", seed);
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
         printf ( "connection made\n" );
@@ -78,6 +101,8 @@ int main(int argc, char** argv) {
             doSQL ( conn, "CREATE TABLE tbl1 (id INTEGER, value INTEGER)" );
           }
           sleep(1); // everyone wait for the table to be created
+          
+          // insert randome stuff
           insert(conn);
           insert(conn);
           insert(conn);
@@ -90,10 +115,10 @@ int main(int argc, char** argv) {
           doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
           doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1_prov_ PROVENANCE(_prov_p, _prov_v) WHERE value < 50" );
         }
-    }
-
-    else
+    } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
+    
+    fakeio("%s.after.%d.txt", seed);
 
     PQfinish ( conn );
     return EXIT_SUCCESS;
