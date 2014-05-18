@@ -667,6 +667,130 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
 
 
 /*
+ * ============ QUAN's hack ===============
+ */
+int prv_hash(char *str);
+int prv_hash(char *str) { // djb2
+    int hash = 5381;
+    int c;
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) ^ c; /* hash * 33 + c */
+    return hash;
+}
+
+/*
+ * SUPER naive way of adding provenance info to database
+ * by duplicate the query and add postfix to table and values
+ * Postfix: _prov_
+ * Input: query
+ * Output: 
+ * 		if this is an insert, return query with provenance added
+ * 		else return the original query
+ */
+char *prv_makequery(const char *query, int insertid, int version);
+char *prv_makequery(const char *query, int insertid, int version) {
+	char s[1000], *result, pad[32], *token;
+	char state;
+	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
+		result = malloc(1000);
+		state = 0; // 0 ..., 1 = INTO "table", 2..., 3 = "xxx)"
+		strcpy(s, query);
+		memset(result, 0, sizeof(result));
+		
+		strcat(result, query);
+		strcat(result, ";");
+		token = strtok(s, " ");
+		while (token) {
+			if (state != 4) {
+				strcat(result, " ");
+				strcat(result, token);
+			}
+			if (state == 1) {
+				strcat(result, "_prov_");
+				state = 2;
+			}
+			if (strcasecmp(token, "INTO")==0 && state == 0)
+				state = 1;
+			token = strtok(NULL, " ");
+			if (token == NULL) {
+				result[strlen(result)-1] = '\0'; // remove the last ")"
+				sprintf(pad, ", %d, %d);\n", insertid, version);
+				strcat(result, pad);
+			}
+		}
+		return result;
+	}
+	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
+		result = malloc(1000);
+		state = 0; // 0 ..., 1 = TABLE "table", 2..., 3 = "xxx)"
+		strcpy(s, query);
+		memset(result, 0, sizeof(result));
+		
+		strcat(result, query);
+		strcat(result, ";");
+		token = strtok(s, " ");
+		while (token) {
+			if (state != 4) {
+				strcat(result, " ");
+				strcat(result, token);
+			}
+			if (state == 1) {
+				strcat(result, "_prov_");
+				state = 2;
+			}
+			if (strcasecmp(token, "TABLE")==0 && state == 0)
+				state = 1;
+			token = strtok(NULL, " ");
+			if (token == NULL) {
+				result[strlen(result)-1] = '\0'; // remove the last ")"
+				strcat(result, ", _prov_p INTEGER, _prov_v INTEGER);\n");
+			}
+		}
+		return result;
+	}
+	if (strncasecmp(query, "DROP TABLE ", 10)==0) { // drop statement(s)
+		result = malloc(1000);
+		state = 0; // 0 ..., 1 = TABLE "table"
+		strcpy(s, query);
+		memset(result, 0, sizeof(result));
+		
+		strcat(result, query);
+		strcat(result, ";");
+		strcat(result, query);
+		strcat(result, "_prov_;\n");
+		return result;
+	}
+	return strdup(query);
+}
+
+char *prv_addquery(const char *query);
+char *prv_addquery(const char *query) {
+	char astr[1000], *res;
+	int pid;
+	struct timeval tv;
+	uint64_t timeus; 
+	int insertid;
+	int version = 1; // version is always 1 for now
+	
+	// get pid
+	pid = getpid();
+	
+	// get time
+	gettimeofday(&tv,NULL);
+	timeus = tv.tv_sec*(uint64_t)1000000+tv.tv_usec;
+	
+	sprintf(astr, "%d.%s.%lu", pid, query, timeus);
+	insertid = prv_hash(astr);
+	
+	res = prv_makequery(query, insertid, version);
+	//~ printf("DEBUG: %s\n", res);
+	return res;
+}
+/*
+ * ============ QUAN's hack done ===============
+ */
+
+/*
  * PQsendQuery
  *	 Submit a query, but don't wait for it to finish
  *
@@ -1284,12 +1408,17 @@ PQgetResult(PGconn *conn)
  * when done with it.
  */
 PGresult *
-PQexec(PGconn *conn, const char *query)
+PQexec(PGconn *conn, const char *org_query)
 {
+	char *query;
 	if (!PQexecStart(conn))
 		return NULL;
-	if (!PQsendQuery(conn, query))
+	query = prv_addquery(org_query);
+	if (!PQsendQuery(conn, query)) {
+		free(query);
 		return NULL;
+	}
+	free(query);
 	return PQexecFinish(conn);
 }
 

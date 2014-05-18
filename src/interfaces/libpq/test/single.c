@@ -10,7 +10,8 @@ void doSQL ( PGconn *conn, char *command ) {
     printf ( "%s\n", command );
     result = PQexec ( conn, command );
 
-    //~ printf("status is %s\n", PQresStatus(PQresultStatus(result)));
+    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        printf("status is %s\n", PQresStatus(PQresultStatus(result)));
     //~ printf("#rows affected %s\n", PQcmdTuples(result));
     //~ printf("result message: %s\n", PQresultErrorMessage(result));
     switch ( PQresultStatus ( result ) ) {
@@ -44,6 +45,9 @@ void insert(PGconn *conn) {
   char sqlStr[1000];
   usleep(rand() % 1000 * 1000);
   sprintf(sqlStr, "INSERT INTO tbl1 values(%d, %d)", rand() % MYMAGICN, rand() % MYMAGICN);
+  // multiple query on a single issue is fine
+  //~ sprintf(sqlStr, "INSERT INTO tbl1 values(%d, %d);INSERT INTO tbl1 values(%d, %d);", 
+    //~ rand() % MYMAGICN, rand() % MYMAGICN, rand() % MYMAGICN, rand() % MYMAGICN); 
   doSQL(conn, sqlStr);
 }
 
@@ -51,7 +55,7 @@ int main(int argc, char** argv) {
     PGconn *conn;
     const char *conninfo;     // argv[1]
     int seed = MYMAGICN;      // argv[2]
-    char querymode = 0;       // true if seed param < 0
+    char insertmode = 1;       // true if seed param < 0
     
     if (argc > 1)
       conninfo = argv[1];
@@ -62,13 +66,13 @@ int main(int argc, char** argv) {
     if (argc > 2)
       seed = atoi(argv[2]);
     if (seed < 0) {
-      querymode = 1;
+      insertmode = 0;
     } else 
       srand(seed);
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
         printf ( "connection made\n" );
-        if (seed >= 0) {
+        if (insertmode) {
           if (seed == MYMAGICN) {
             doSQL ( conn, "DROP TABLE tbl1" );
             doSQL ( conn, "CREATE TABLE tbl1 (id INTEGER, value INTEGER)" );
@@ -81,8 +85,10 @@ int main(int argc, char** argv) {
           insert(conn);
           insert(conn);
         } else {
-          //~ doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 10" );
+          //~ doSQL ( conn, "SELECT * FROM tbl1_prov_" );
+          doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
           doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
+          doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1_prov_ PROVENANCE(_prov_p, _prov_v) WHERE value < 50" );
         }
     }
 
