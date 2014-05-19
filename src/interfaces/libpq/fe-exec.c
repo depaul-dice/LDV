@@ -680,9 +680,9 @@ sll prv_hash(char *str) { // djb2
     return hash;
 }
 
-void prv_store(sll insertid, int version, uint64_t timeus);
-void prv_store(sll insertid, int version, uint64_t timeus) {
-	fprintf(stderr, "prv_store_insert\t%d\t%lld\t%d\t%lu\n", getpid(), insertid, version, timeus);
+void prv_store(sll insertid, int version, uint64_t timeus, const char* sql);
+void prv_store(sll insertid, int version, uint64_t timeus, const char* sql) {
+	fprintf(stderr, "prv_store_insert\t%d\t%lld\t%d\t%lu\t%s\n", getpid(), insertid, version, timeus, sql);
 }
 
 /*
@@ -725,7 +725,7 @@ char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeu
 				strcat(result, pad);
 			}
 		}
-		prv_store(insertid, version, timeus);
+		prv_store(insertid, version, timeus, query);
 		return result;
 	}
 	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
