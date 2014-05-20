@@ -103,15 +103,12 @@ int main(int argc, char** argv) {
             doSQL ( conn, "CREATE TABLE tbl1 (id INTEGER, value INTEGER)" );
           }
           sleep(1); // everyone wait for the table to be created
-          
           // insert randome stuff
           insert(conn);
           insert(conn);
+          
         } else {
-          //~ doSQL ( conn, "SELECT * FROM tbl1_prov_" );
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
-          //~ doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
-          //~ doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1_prov_ PROVENANCE(_prov_p, _prov_v) WHERE value < 50" );
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
