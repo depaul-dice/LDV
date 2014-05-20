@@ -680,9 +680,44 @@ sll prv_hash(char *str) { // djb2
     return hash;
 }
 
-void prv_store(sll insertid, int version, uint64_t timeus, const char* sql);
-void prv_store(sll insertid, int version, uint64_t timeus, const char* sql) {
+void prv_storeInsert(sll insertid, int version, uint64_t timeus, const char* sql);
+void prv_storeInsert(sll insertid, int version, uint64_t timeus, const char* sql) {
 	fprintf(stderr, "prv_store_insert\t%d\t%lld\t%d\t%lu\t%s\n", getpid(), insertid, version, timeus, sql);
+}
+
+void prv_storeSelect(sll selectid, char* insertids, uint64_t timeus, const char* sql);
+void prv_storeSelect(sll selectid, char* insertids, uint64_t timeus, const char* sql) {
+	fprintf(stderr, "prv_store_select\t%d\t%lld\t%s\t%lu\t%s\n", getpid(), selectid, insertids, timeus, sql);
+}
+
+char* prv_getInsertIds(PGresult *result);
+char* prv_getInsertIds(PGresult *result) {
+	int r, pn, vn;
+	int nrows = PQntuples ( result );
+	char selectid[30]; // 30 chars per insertid
+	char *strlist;
+	
+	if (nrows == 0) return NULL;
+	
+	strlist = malloc(nrows * sizeof(selectid));
+	if (strlist == NULL) return NULL; // or malloc exception?
+	
+	strlist[0] = '\0'; // init empty string
+	
+	pn = PQfnumber(result, "prov___prov__p");
+	vn = PQfnumber(result, "prov___prov__v");
+
+	for ( r = 0; r < nrows; r++ ) {
+		sprintf (selectid, "%s.%s.",
+				 PQgetvalue ( result, r, pn ),
+				 PQgetvalue ( result, r, vn ) );
+		strcat(strlist, selectid);
+	}
+	if (strlist[0] != '\0') { // not empty, need to remove the end "."
+		strlist[strlen(strlist) - 1] = '\0';
+	}
+	
+	return strlist;
 }
 
 /*
@@ -694,18 +729,17 @@ void prv_store(sll insertid, int version, uint64_t timeus, const char* sql) {
  * 		if this is an insert, return query with provenance added
  * 		else return the original query
  */
-char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeus);
-char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeus) {
-	char s[1000], *result, pad[32], *token;
+char *prv_assembleQuery(const char *query, sll queryid, int version, uint64_t timeus);
+char *prv_assembleQuery(const char *query, sll queryid, int version, uint64_t timeus) {
+	char s[1000], *result = NULL, pad[32], *token;
 	char state;
+	
 	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = INTO "table", 2..., 3 = "xxx)"
 		strcpy(s, query);
 		memset(result, 0, sizeof(result));
 		
-		strcat(result, query);
-		strcat(result, ";");
 		token = strtok(s, " ");
 		while (token) {
 			if (state != 4) {
@@ -721,21 +755,44 @@ char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeu
 			token = strtok(NULL, " ");
 			if (token == NULL) {
 				result[strlen(result)-1] = '\0'; // remove the last ")"
-				sprintf(pad, ", %lld, %d);\n", insertid, version);
+				sprintf(pad, ", %lld, %d);\n", queryid, version);
 				strcat(result, pad);
 			}
 		}
-		prv_store(insertid, version, timeus, query);
+		prv_storeInsert(queryid, version, timeus, query);
 		return result;
 	}
+	
+	if (strncasecmp(query, "SELECT ", 7)==0) { // select statement(s)
+		result = malloc(1000);
+		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+		strcpy(s, query);
+		memset(result, 0, sizeof(result));
+		
+		token = strtok(s, " ");
+		token = strtok(NULL, " "); // bypass the "SELECT " at start
+		strcpy(result, "SELECT PROVENANCE");
+		while (token) {
+			strcat(result, " ");
+			strcat(result, token);
+			if (state == 1) {
+				strcat(result, "_prov_ PROVENANCE(_prov_p, _prov_v)");
+				state = 2;
+			}
+			if (strcasecmp(token, "FROM")==0 && state == 0)
+				state = 1;
+			token = strtok(NULL, " ");
+		}
+		//~ prv_store(queryid, version, timeus, query);
+		return result;
+	}
+	
 	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = TABLE "table", 2..., 3 = "xxx)"
 		strcpy(s, query);
 		memset(result, 0, sizeof(result));
 		
-		strcat(result, query);
-		strcat(result, ";");
 		token = strtok(s, " ");
 		while (token) {
 			if (state != 4) {
@@ -756,6 +813,7 @@ char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeu
 		}
 		return result;
 	}
+	
 	if (strncasecmp(query, "DROP TABLE ", 10)==0) { // drop statement(s)
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = TABLE "table"
@@ -763,21 +821,17 @@ char *prv_makequery(const char *query, sll insertid, int version, uint64_t timeu
 		memset(result, 0, sizeof(result));
 		
 		strcat(result, query);
-		strcat(result, ";");
-		strcat(result, query);
 		strcat(result, "_prov_;\n");
 		return result;
 	}
-	return strdup(query);
+	return NULL;
 }
 
-char *prv_addquery(const char *query);
-char *prv_addquery(const char *query) {
+char *prv_createQuery(const char *query, sll *queryid, uint64_t *timeus);
+char *prv_createQuery(const char *query, sll *queryid, uint64_t *timeus) {
 	char astr[1000], *res;
 	int pid;
 	struct timeval tv;
-	uint64_t timeus; 
-	long long insertid;
 	int version = 1; // version is always 1 for now
 	
 	// get pid
@@ -785,12 +839,12 @@ char *prv_addquery(const char *query) {
 	
 	// get time
 	gettimeofday(&tv,NULL);
-	timeus = tv.tv_sec*(uint64_t)1000000+tv.tv_usec;
+	*timeus = tv.tv_sec*(uint64_t)1000000+tv.tv_usec;
 	
-	sprintf(astr, "%d.%s.%lu", pid, query, timeus);
-	insertid = prv_hash(astr);
+	sprintf(astr, "%d.%s.%lu", pid, query, *timeus);
+	*queryid = prv_hash(astr);
 	
-	res = prv_makequery(query, insertid, version, timeus);
+	res = prv_assembleQuery(query, *queryid, version, *timeus);
 	//~ printf("DEBUG: %s\n", res);
 	return res;
 }
@@ -1415,19 +1469,38 @@ PQgetResult(PGconn *conn)
  * The user is responsible for freeing the PGresult via PQclear()
  * when done with it.
  */
+
 PGresult *
-PQexec(PGconn *conn, const char *org_query)
+PQexecSingle(PGconn *conn, const char *query);
+PGresult *
+PQexecSingle(PGconn *conn, const char *query)
 {
-	char *query;
 	if (!PQexecStart(conn))
 		return NULL;
-	query = prv_addquery(org_query);
-	if (!PQsendQuery(conn, query)) {
-		free(query);
+	if (!PQsendQuery(conn, query))
 		return NULL;
-	}
-	free(query);
 	return PQexecFinish(conn);
+} 
+
+PGresult *
+PQexec(PGconn *conn, const char *query)
+{
+	sll queryid;
+	uint64_t timeus;
+	char *prov_query = prv_createQuery(query, &queryid, &timeus);
+	if (prov_query != NULL) {
+		PGresult *result = PQexecSingle(conn, prov_query);
+		if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
+			//~ prv_storeSelect(queryid, version, timeus, query);
+			char *insertIds = prv_getInsertIds(result);
+			prv_storeSelect(queryid, insertIds, timeus, query);
+			if (insertIds != NULL)
+				free(insertIds);
+		}
+		PQclear ( result );
+		free(prov_query);
+	}
+	return PQexecSingle(conn, query);
 }
 
 /*

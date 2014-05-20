@@ -7,11 +7,13 @@
 void doSQL ( PGconn *conn, char *command );
 void doSQL ( PGconn *conn, char *command ) {
     PGresult *result;
+    int restatus;
     printf ( "%s\n", command );
     result = PQexec ( conn, command );
 
-    if (PQresultStatus(result) != PGRES_COMMAND_OK)
-        printf("status is %s\n", PQresStatus(PQresultStatus(result)));
+    restatus = PQresultStatus(result);
+    if (restatus != PGRES_COMMAND_OK && restatus != PGRES_TUPLES_OK)
+        printf("status is %s\n", PQresStatus(restatus));
     //~ printf("#rows affected %s\n", PQcmdTuples(result));
     //~ printf("result message: %s\n", PQresultErrorMessage(result));
     switch ( PQresultStatus ( result ) ) {
@@ -112,8 +114,8 @@ int main(int argc, char** argv) {
         } else {
           //~ doSQL ( conn, "SELECT * FROM tbl1_prov_" );
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
-          doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
-          doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1_prov_ PROVENANCE(_prov_p, _prov_v) WHERE value < 50" );
+          //~ doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1 PROVENANCE(value) WHERE value < 50" );
+          //~ doSQL ( conn, "SELECT PROVENANCE sum(value) FROM tbl1_prov_ PROVENANCE(_prov_p, _prov_v) WHERE value < 50" );
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );

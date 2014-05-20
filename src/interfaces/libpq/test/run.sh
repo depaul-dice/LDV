@@ -2,6 +2,7 @@
 
 ### prepare clean db and newest binary
 rm -rf cde-package
+cp single query
 
 ### start
 ~/assi/cde/ptu $@ ./exp.sh
