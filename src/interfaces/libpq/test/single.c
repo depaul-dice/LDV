@@ -107,10 +107,6 @@ int main(int argc, char** argv) {
           // insert randome stuff
           insert(conn);
           insert(conn);
-          insert(conn);
-          insert(conn);
-          insert(conn);
-          insert(conn);
         } else {
           //~ doSQL ( conn, "SELECT * FROM tbl1_prov_" );
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );

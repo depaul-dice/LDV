@@ -7,17 +7,32 @@ totalrange = 20
 
 db = leveldb.LevelDB(path, create_if_missing = False)
 
-# 'prv_store_insert\t12784\t8011914157105071939\t1\t1400440844729033\n'
-# 'action \t pid \t insertid \t version \t usec'
-(ACTION, PIDKEY, INSERTID, VERSION, USEC, SQL) = range(0, 6)
+ACTION = 0
 for line in fileinput.input():
     tokens = line[:-1].split('\t')
     if tokens[ACTION] == 'prv_store_insert':
+        # 'prv_store_insert	26516	543777651662415126	1	1400549462612869	INSERT INTO tbl1 values(79, 1)'
+        # 'action \t pid \t queryid \t version \t usec \t sql'
+        (_, PIDKEY, QUERYID, VERSION, USEC, SQL) = range(0, 6)
         try:
             pidkey = db.Get('pid.'+tokens[PIDKEY])
-            db.Put('prv.db.'+pidkey+'.usec.'+tokens[USEC], tokens[INSERTID]+'.'+tokens[VERSION])
-            db.Put('prv.db.'+pidkey+'.insertid.'+ tokens[INSERTID]+'.'+tokens[VERSION]+'.'+tokens[USEC], tokens[SQL])
-#            db.Put('prv.db.'+pidkey+'.insertid.usec'+ tokens[INSERTID]+'.'+tokens[VERSION], tokens[USEC])
+            db.Put('prv.db.'+pidkey+'.insertid.sql.'+ tokens[QUERYID]+'.'+tokens[VERSION]+'.'+tokens[USEC], tokens[SQL])
+            #~ db.Put('prv.db.'+pidkey+'.insertid.id.'+tokens[USEC], tokens[QUERYID]+'.'+tokens[VERSION])
+        except KeyError:
+            print "pidkey for " + tokens[PIDKEY] + " not found!"
+    if tokens[ACTION] == 'prv_store_select':
+        # 'prv_store_select	26538	4897368946983237418	543777651662415126.1.489876779991029268.1.7874536620689878546.1.5489998234078931821.1.3557775467278126851.1	1400549467338983	SELECT sum(value) FROM tbl1 WHERE value < 50\n'
+        # 'action \t pid \t queryid \t *(insertid.ver) \t usec \t sql'
+        (_, PIDKEY, QUERYID, INSERTIDS, USEC, SQL) = range(0, 6)
+        try:
+            pidkey = db.Get('pid.'+tokens[PIDKEY])
+            db.Put('prv.db.'+pidkey+'.selectid.sql.'+ tokens[QUERYID]+'.'+tokens[USEC], tokens[SQL])
+            ids = tokens[INSERTIDS].split('.');
+            if len(ids) > 0:
+                for i in range(len(ids)/2):
+                    (insertid, version) = ids[2*i:2*i+2]
+                    db.Put('prv.db.'+pidkey+'.selectid.insertid.'+ tokens[QUERYID]+'.'+tokens[USEC]+'.'+str(i), \
+                        insertid + '.' + version)
         except KeyError:
             print "pidkey for " + tokens[PIDKEY] + " not found!"
         
