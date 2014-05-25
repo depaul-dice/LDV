@@ -11,15 +11,25 @@ include $(top_builddir)/src/Makefile.global
 override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS)
 override LDLIBS := $(libpq_pgport) $(LDLIBS)
 
+DIRS = access bootstrap catalog parser commands executor lib libpq \
+	metaq nodes optimizer port postmaster provrewrite regex rewrite \
+	storage tcop tsearch utils ../timezone
+SUBSYSOBJS = $(DIRS:%=$(top_builddir)/src/backend/%/SUBSYS.o)
 
-PROGS = single
+OBJS = single.o parser.o
+PROGS = single parser
 
 all: $(PROGS)
-	/usr/bin/gcc-4.7 -O2 -Wall -Wmissing-prototypes -Wpointer-arith -Winline -Wdeclaration-after-statement -Wendif-labels -fno-strict-aliasing -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq -lpq  -o single
+
+single: single.c
+	$(CC) $(CFLAGS) -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq -lpq  -o single
 	cp single query
+	
+parser: parser.o
+	$(CC) $(CFLAGS) parser.o $(SUBSYSOBJS) $(LDFLAGS) $(LIBS) -o $@$(X)
 
 clean: 
-	rm -f $(PROGS)
+	rm -f $(PROGS) $(OBJS)
 
 # need at least one process to run with param 100 (MYMAGICN)
 run:

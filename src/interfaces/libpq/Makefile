@@ -67,6 +67,7 @@ endif
 
 
 all: def-files $(srcdir)/libpq.rc all-lib
+	$(MAKE) -C test $@
 
 # Shared library stuff
 include $(top_srcdir)/src/Makefile.shlib
