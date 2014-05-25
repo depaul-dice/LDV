@@ -7,31 +7,71 @@
 
 #include "postgres.h"
 #include "nodes/pg_list.h"
-#include "nodes/parsenodes.h"
 #include "parser/parser.h"
+
+/* Write a Node field */
+#define WRITE_NODE_FIELD(fldname) \
+	(appendStringInfo(str, " :" CppAsString(fldname) " "), \
+	 _outNode(str, node->fldname))
+
+/* Write the label for the node type */
+#define WRITE_NODE_TYPE(nodelabel) \
+	appendStringInfoString(str, nodelabel)
 
 const char *progname;
 
-void print_list(List* l) {
-	ListCell *it;
-	foreach(it, l) {
-		printf("list: %d\n", it->data.int_value);
+typedef struct InsertionInfo
+{
+	NodeTag		type;
+	Node       *relation;		/* relation to insert into */
+	List	   *cols;			/* optional: names of the target columns */
+	Node	   *selectStmt;		/* the source SELECT/VALUES, or NULL */
+	List	   *returningList;	/* list of expressions to return */
+} InsertionInfo; // get this from _copyInsertStmt
+
+static void
+_outInsertionInfo(StringInfo str, InsertionInfo *node) {
+	WRITE_NODE_TYPE("INSERTTIONINFO");
+
+	WRITE_NODE_FIELD(relation);
+	WRITE_NODE_FIELD(cols);
+	WRITE_NODE_FIELD(selectStmt);
+	WRITE_NODE_FIELD(returningList);
+}
+
+void
+ptuOutNode(StringInfo str, void *obj) {
+	switch(nodeTag(obj)) {
+	case T_InsertStmt:
+		_outInsertionInfo(str, obj);
+		break;
 	}
 }
 
-void print_query(Query* query) {
-	printf("%d %d\n", query->commandType, CMD_INSERT);
-	if (query->commandType == CMD_INSERT) {
-		printf("INSERT ");
-		print_list(query->rtable);
-		print_list(query->targetList);
+char *
+_nodeToString(void *obj) {
+	StringInfoData str;
+
+	/* see stringinfo.h for an explanation of this maneuver */
+	initStringInfo(&str);
+	ptuOutNode(&str, obj);
+	return str.data;
+}
+
+void print_tree(List* raw_parsetree_list, int depth) {
+	ListCell *list_item;
+	printf("%*s" "%d %d\n", depth * 4, " ", raw_parsetree_list->type, raw_parsetree_list->length);
+	foreach(list_item, raw_parsetree_list) {
+		Node	   *stmt = (Node *) lfirst(list_item);
+		char *msg = _nodeToString(stmt);
+		printf("%s\n", msg);
+		pfree(msg);
 	}
 }
 
 int main(int argc, char** argv) {
-	char *sql = "insert into weather values(0, \"cool\");";
+	char *sql = "INSERT into weather values(0, \"cool\");";
 	List *parsetree;
-	Query *query;
 
 	progname = get_progname(argv[0]);
 
@@ -48,9 +88,10 @@ int main(int argc, char** argv) {
 		printf("Error\n");
 		return -1;
 	}
-	query = parse_analyze(parsetree, sql, NULL, 0);
-	print_query(query);
+	print_tree(parsetree, 1);
 
+	list_free_deep(parsetree);
+	proc_exit();
 	return 0;
 }
 
