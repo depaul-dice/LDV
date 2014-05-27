@@ -25,7 +25,7 @@ single: single.c
 	$(CC) $(CFLAGS) -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq -lpq  -o single
 	cp single query
 	
-parser: parser.o
+parser: parser.o $(SUBSYSOBJS)
 	$(CC) $(CFLAGS) parser.o $(SUBSYSOBJS) $(LDFLAGS) $(LIBS) -o $@$(X)
 
 clean: 
