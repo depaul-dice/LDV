@@ -62,28 +62,22 @@
 	appendStringInfo(str, " :" CppAsString(fldname) " %c", node->fldname)
 
 /* Write an enumerated-type field as an integer code */
-#define WRITE_ENUM_FIELD(fldname, enumtype) \
-	appendStringInfo(str, " :" CppAsString(fldname) " %d", \
-					 (int) node->fldname)
+#define WRITE_ENUM_FIELD(fldname, enumtype)
 
 /* Write a float field --- caller must give format to define precision */
 #define WRITE_FLOAT_FIELD(fldname,format) \
 	appendStringInfo(str, " :" CppAsString(fldname) " " format, node->fldname)
 
 /* Write a boolean field */
-#define WRITE_BOOL_FIELD(fldname) \
-	appendStringInfo(str, " :" CppAsString(fldname) " %s", \
-					 booltostr(node->fldname))
+#define WRITE_BOOL_FIELD(fldname)
 
 /* Write a character-string (possibly NULL) field */
 #define WRITE_STRING_FIELD(fldname) \
-	(appendStringInfo(str, " :" CppAsString(fldname) " "), \
-	 _strToken(str, node->fldname))
+	 _strToken(str, node->fldname)
 
 /* Write a Node field */
 #define WRITE_NODE_FIELD(fldname) \
-	(appendStringInfo(str, " :" CppAsString(fldname) " "), \
-	 _strNode(str, node->fldname))
+	 _strNode(str, node->fldname)
 
 /* Write a bitmapset field */
 #define WRITE_BITMAPSET_FIELD(fldname) \
@@ -93,8 +87,23 @@
 
 #define booltostr(x)  ((x) ? "true" : "false")
 
+/*
+ * ==================
+ * quanpt
+ */
 
+#define STR_KEYWORD(keyword) \
+		appendStringInfoString(str, keyword " ")
 
+#define STR_SPACE \
+		appendStringInfoString(str, " ")
+
+#define STR_NODE(fldname) \
+		_strNode(str, node->fldname)
+
+#define IFLISTNOTNULL(fldname) \
+	if (node->fldname != NULL && node->fldname->length > 0)
+// ==================
 
 /*
  * _strToken
@@ -108,7 +117,7 @@ _strToken(StringInfo str, char *s)
 {
 	if (s == NULL || *s == '\0')
 	{
-		appendStringInfo(str, "<>");
+//		appendStringInfo(str, "<>");
 		return;
 	}
 
@@ -158,7 +167,7 @@ _strList(StringInfo str, List *node)
 		{
 			_strNode(str, lfirst(lc));
 			if (lnext(lc))
-				appendStringInfoChar(str, ' ');
+				appendStringInfoString(str, ", ");
 		}
 		else if (IsA(node, IntList))
 			appendStringInfo(str, " %d", lfirst_int(lc));
@@ -654,8 +663,6 @@ _strAlias(StringInfo str, Alias *node)
 static void
 _strRangeVar(StringInfo str, RangeVar *node)
 {
-	WRITE_NODE_TYPE("RANGEVAR");
-
 	/*
 	 * we deliberately ignore catalogname here, since it is presently not
 	 * semantically meaningful
@@ -1589,25 +1596,32 @@ _strDeclareCursorStmt(StringInfo str, DeclareCursorStmt *node)
 static void
 _strSelectStmt(StringInfo str, SelectStmt *node)
 {
-	WRITE_NODE_TYPE("SELECT");
 
-	WRITE_NODE_FIELD(distinctClause);
-	WRITE_NODE_FIELD(intoClause);
-	WRITE_NODE_FIELD(targetList);
-	WRITE_NODE_FIELD(fromClause);
-	WRITE_NODE_FIELD(whereClause);
-	WRITE_NODE_FIELD(groupClause);
-	WRITE_NODE_FIELD(havingClause);
-	WRITE_NODE_FIELD(valuesLists);
-	WRITE_NODE_FIELD(sortClause);
-	WRITE_NODE_FIELD(limitOffset);
-	WRITE_NODE_FIELD(limitCount);
-	WRITE_NODE_FIELD(lockingClause);
-	WRITE_ENUM_FIELD(op, SetOperation);
-	WRITE_BOOL_FIELD(all);
-	WRITE_NODE_FIELD(larg);
-	WRITE_NODE_FIELD(rarg);
-	WRITE_NODE_FIELD(provenanceClause);
+	IFLISTNOTNULL(valuesLists) {
+		STR_SPACE;
+		STR_KEYWORD("VALUES");
+		_strNode(str, lfirst(list_head(node->valuesLists)));
+	} else {
+		WRITE_NODE_TYPE("SELECT");
+
+		WRITE_NODE_FIELD(distinctClause);
+		WRITE_NODE_FIELD(intoClause);
+		WRITE_NODE_FIELD(targetList);
+		WRITE_NODE_FIELD(fromClause);
+		WRITE_NODE_FIELD(whereClause);
+		WRITE_NODE_FIELD(groupClause);
+		WRITE_NODE_FIELD(havingClause);
+		WRITE_NODE_FIELD(valuesLists);
+		WRITE_NODE_FIELD(sortClause);
+		WRITE_NODE_FIELD(limitOffset);
+		WRITE_NODE_FIELD(limitCount);
+		WRITE_NODE_FIELD(lockingClause);
+		WRITE_ENUM_FIELD(op, SetOperation);
+		WRITE_BOOL_FIELD(all);
+		WRITE_NODE_FIELD(larg);
+		WRITE_NODE_FIELD(rarg);
+		WRITE_NODE_FIELD(provenanceClause);
+	}
 }
 
 static void
@@ -1938,10 +1952,10 @@ _strValue(StringInfo str, Value *value)
 static void
 _strColumnRef(StringInfo str, ColumnRef *node)
 {
-	WRITE_NODE_TYPE("COLUMNREF");
+//	WRITE_NODE_TYPE("COLUMNREF");
 
 	WRITE_NODE_FIELD(fields);
-	WRITE_INT_FIELD(location);
+//	WRITE_INT_FIELD(location);
 }
 
 static void
@@ -1955,11 +1969,11 @@ _strParamRef(StringInfo str, ParamRef *node)
 static void
 _strAConst(StringInfo str, A_Const *node)
 {
-	WRITE_NODE_TYPE("A_CONST");
+//	WRITE_NODE_TYPE("A_CONST");
 
-	appendStringInfo(str, " :val ");
+//	appendStringInfo(str, " :val ");
 	_strValue(str, &(node->val));
-	WRITE_NODE_FIELD(typename);
+//	WRITE_NODE_FIELD(typename);
 }
 
 static void
@@ -2056,27 +2070,23 @@ _strFkConstraint(StringInfo str, FkConstraint *node)
 
 
 // ================================
-// quanpt
-
-/* Write the label for the node type */
-#define STR_KEYWORD(keyword) \
-		appendStringInfoString(str, keyword " ")
-
-#define STR_NODE(fldname) \
-		_strNode(str, node->fldname)
-
-#define STR_MULTINODE(fldname) \
-		_strNode(str, node->fldname)
 
 static void
 _strInsertStmt(StringInfo str, InsertStmt *node) {
 	STR_KEYWORD("INSERT INTO");
 	STR_NODE(relation);
-	STR_MULTINODE(cols);
-	_strSelectStmt(str, node->selectStmt);
-	if (node->returningList != NULL && node->returningList->length > 0) {
+	STR_SPACE;
+	STR_NODE(cols);
+	STR_SPACE;
+	if (nodeTag(node->selectStmt) == T_SelectStmt)
+		_strSelectStmt(str, (SelectStmt *) node->selectStmt);
+	else {
+		// todo
+	}
+	IFLISTNOTNULL(returningList) {
+		STR_SPACE;
 		STR_KEYWORD("RETURNING");
-		STR_MULTINODE(returningList);
+		STR_NODE(returningList);
 	}
 }
 
@@ -2089,9 +2099,9 @@ _strInsertStmt(StringInfo str, InsertStmt *node) {
 void
 _strNode(StringInfo str, void *obj)
 {
-	if (obj == NULL)
-		appendStringInfo(str, "<>");
-	else if (IsA(obj, List) ||IsA(obj, IntList) || IsA(obj, OidList))
+	if (obj == NULL) {
+//		appendStringInfo(str, "");
+	} else if (IsA(obj, List) ||IsA(obj, IntList) || IsA(obj, OidList))
 		_strList(str, obj);
 	else if (IsA(obj, Integer) ||
 			 IsA(obj, Float) ||
@@ -2103,7 +2113,6 @@ _strNode(StringInfo str, void *obj)
 	}
 	else
 	{
-		appendStringInfoChar(str, '{');
 		switch (nodeTag(obj))
 		{
 			case T_PlannedStmt:
@@ -2482,7 +2491,6 @@ _strNode(StringInfo str, void *obj)
 				outProvNode(str, obj);
 				break;
 		}
-		appendStringInfoChar(str, '}');
 	}
 }
 
