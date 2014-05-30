@@ -16,7 +16,7 @@ DIRS = access bootstrap catalog parser commands executor lib libpq \
 	storage tcop tsearch utils ../timezone
 SUBSYSOBJS = $(DIRS:%=$(top_builddir)/src/backend/%/SUBSYS.o)
 
-OBJS = single.o parser.o
+OBJS = single.o parser.o strfuncs.o
 PROGS = single parser
 
 all: $(PROGS)
@@ -25,8 +25,8 @@ single: single.c
 	$(CC) $(CFLAGS) -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq -lpq  -o single
 	cp single query
 	
-parser: parser.o $(SUBSYSOBJS)
-	$(CC) $(CFLAGS) parser.o $(SUBSYSOBJS) $(LDFLAGS) $(LIBS) -o $@$(X)
+parser: parser.o strfuncs.o $(SUBSYSOBJS)
+	$(CC) $(CFLAGS) parser.o strfuncs.o $(SUBSYSOBJS) $(LDFLAGS) $(LIBS) -o $@$(X)
 
 clean: 
 	rm -f $(PROGS) $(OBJS)

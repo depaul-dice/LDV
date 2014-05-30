@@ -17,6 +17,11 @@
 #include <utils/memutils.h>
 #include <utils/palloc.h>
 
+/*
+ * ==========================
+ * convert sql string to tree
+ */
+
 /* Write the label for the node type */
 #define WRITE_NODE_TYPE(nodelabel) \
 	appendStringInfoString(str, nodelabel)
@@ -25,16 +30,6 @@
 #define WRITE_NODE_FIELD(fldname) \
 	(appendStringInfo(str, "\n    :" CppAsString(fldname) " "), \
 	 _outNode(str, node->fldname))
-
-/* Write a character-string (possibly NULL) field */
-#define WRITE_STRING_FIELD(fldname) \
-	(appendStringInfo(str, "\n    :" CppAsString(fldname) " "), \
-	 _outToken(str, node->fldname))
-
-/* Write an enumerated-type field as an integer code */
-#define WRITE_ENUM_FIELD(fldname, enumtype) \
-	appendStringInfo(str, "\n    :" CppAsString(fldname) " %d", \
-					 (int) node->fldname)
 
 const char *progname;
 
@@ -80,27 +75,11 @@ _outInsertionInfo(StringInfo str, InsertStmt *node) {
 	WRITE_NODE_FIELD(returningList);
 }
 
-static void
-_outCreateInfo(StringInfo str, CreateStmt *node) {
-	WRITE_NODE_TYPE("CREATEINFO");
-
-	WRITE_NODE_FIELD(relation);
-	WRITE_NODE_FIELD(tableElts);
-	WRITE_NODE_FIELD(inhRelations);
-	WRITE_NODE_FIELD(constraints);
-	WRITE_NODE_FIELD(options);
-	WRITE_ENUM_FIELD(oncommit, OnCommitAction);
-	WRITE_STRING_FIELD(tablespacename);
-}
-
 void
 ptuOutNode(StringInfo str, void *obj) {
 	switch(nodeTag(obj)) {
 	case T_InsertStmt:
 		_outInsertionInfo(str, obj);
-		break;
-	case T_CreateStmt:
-		_outCreateInfo(str, obj);
 		break;
 	default:
 		_outNode(str, obj);
@@ -118,17 +97,11 @@ _nodeToString(void *obj) {
 	return str.data;
 }
 
-char *stringToSql(char *str) {
-	StringInfoData sql;
-	initStringInfo(&sql);
-	return sql.data;
-}
-
 void print_tree(List* raw_parsetree_list) {
 	ListCell *list_item;foreach(list_item, raw_parsetree_list) {
 		Node *stmt = (Node *) lfirst(list_item);
 		char *msg = _nodeToString(stmt);
-		char *sql = stringToSql(msg);
+		char *sql = nodeToSql(stmt);
 		printf("%s\n--> %s\n", msg, sql);
 		pfree(msg);
 		pfree(sql);
@@ -162,11 +135,12 @@ int main(int argc, char** argv) {
 
 	print_tree_sql(sql);
 
-	print_tree_sql("CREATE TABLE tbl1 (id INTEGER, value INTEGER)");
-	print_tree_sql("INSERT INTO tbl1 values(79, 1)");
-	print_tree_sql("INSERT INTO tbl1 values(49, 24)");
-	print_tree_sql("SELECT sum(value) FROM tbl1 WHERE value < 50");
-	print_tree_sql("INSERT INTO distributors (did, dname) VALUES (DEFAULT, 'XYZ Widgets')");
+//	print_tree_sql("CREATE TABLE tbl1 (id INTEGER, value INTEGER)");
+//	print_tree_sql("INSERT INTO tbl1 values(79, 1)");
+//	print_tree_sql("INSERT INTO tbl1 values(49, 24)");
+//	print_tree_sql("SELECT sum(value) FROM tbl1 WHERE value < 50");
+//	print_tree_sql("INSERT INTO distributors (did, dname) VALUES (DEFAULT, 'XYZ Widgets')");
+//	print_tree_sql("insert into weather (select time, 'hot' as cond from weather where time = 42 limit 5);");
 
 	proc_exit(0);
 	return 0;
