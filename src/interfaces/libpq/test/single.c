@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     if (argc > 1)
       conninfo = argv[1];
     else
-      conninfo = "dbname=single";
+      conninfo = "host=localhost dbname=single";
     conn = PQconnectdb ( conninfo );
       
     if (argc > 2)
