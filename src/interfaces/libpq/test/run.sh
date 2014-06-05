@@ -3,6 +3,16 @@
 ### prepare clean db and newest binary
 rm -rf cde-package
 cp single query
+oldpath=`pwd`
+if [ "$PERM" = "" ]
+then
+	export PERM=/var/tmp/quanpt/froot/perm
+fi
+
+cd $PERM
+rm -rf data
+tar xzf $oldpath/data.startup.tgz
+cd $oldpath
 
 ### start
 ~/assi/cde/ptu $@ ./exp.sh
