@@ -102,7 +102,7 @@ void print_tree(List* raw_parsetree_list) {
 		Node *stmt = (Node *) lfirst(list_item);
 		char *msg = _nodeToString(stmt);
 		char *sql = nodeToSql(stmt);
-		printf("%s\n--> %s\n", msg, sql);
+		printf("%s\n-->\n%s\n\n", msg, sql);
 		pfree(msg);
 		pfree(sql);
 	}
@@ -118,12 +118,13 @@ void print_tree_sql(char* sql) {
 		printf("Error parsing '%s'\n", sql);
 		return;
 	}
+//	pprint(parsetree);
 	print_tree(parsetree);
 	list_free_deep(parsetree);
 }
 
 int main(int argc, char** argv) {
-	char *sql = "INSERT into weather values(0, \"cool\");";
+	char *sql = "INSERT into weather values(0, 'cool');";
 
 
 	progname = get_progname(argv[0]);
@@ -139,7 +140,7 @@ int main(int argc, char** argv) {
 //	print_tree_sql("INSERT INTO tbl1 values(79, 1)");
 //	print_tree_sql("INSERT INTO tbl1 values(49, 24)");
 //	print_tree_sql("SELECT sum(value) FROM tbl1 WHERE value < 50");
-//	print_tree_sql("INSERT INTO distributors (did, dname) VALUES (DEFAULT, 'XYZ Widgets')");
+	print_tree_sql("INSERT INTO distributors (did, dname) VALUES (DEFAULT, 'XYZ Widgets')");
 //	print_tree_sql("insert into weather (select time, 'hot' as cond from weather where time = 42 limit 5);");
 
 	proc_exit(0);

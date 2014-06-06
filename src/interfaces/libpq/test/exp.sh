@@ -12,7 +12,7 @@ then
 	fi
 fi
 cd $PERM
-bin/pg_ctl start -D data
+bin/pg_ctl start -D data --log logfile
 cd $oldpath
 sleep 3
 

@@ -109,6 +109,7 @@ int main(int argc, char** argv) {
           
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
+          doSQL ( conn, "SELECT * FROM tbl1 WHERE value < 50" );
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );

@@ -6,7 +6,12 @@ cp single query
 oldpath=`pwd`
 if [ "$PERM" = "" ]
 then
-	export PERM=/var/tmp/quanpt/froot/perm
+	if [ `hostname` = "qpc" ]
+	then
+	  PERM=/home/quanpt/myapps/perm
+	else
+	  PERM=/var/tmp/quanpt/froot/perm
+	fi
 fi
 
 cd $PERM
@@ -21,4 +26,4 @@ cd $oldpath
 cat 100.log | python insertdb.py
 cat 99.log | python insertdb.py
 cat 0.log | python insertdb.py
-~/assi/cde/scripts/db2timeline.py -f cde-package/provenance.cde-root.1.log -d gv1 >/dev/null 2>&1
+#~/assi/cde/scripts/db2timeline.py -f cde-package/provenance.cde-root.1.log -d gv1 >/dev/null 2>&1
