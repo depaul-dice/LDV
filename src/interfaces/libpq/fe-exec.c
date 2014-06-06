@@ -693,8 +693,74 @@ void prv_storeSelect(sll selectid, char* insertids, uint64_t timeus, const char*
 	fprintf(stderr, "prv_store_select\t%d\t%lld\t%s\t%lu\t%s\n", getpid(), selectid, insertids, timeus, sql);
 }
 
-char* prv_getInsertIds(PGresult *result);
-char* prv_getInsertIds(PGresult *result) {
+void prv_storeRow(char *p, char* tablename, PGconn* conn);
+void prv_storeRow(char *p, char* tablename, PGconn* conn) {
+	char sql[1000], fields[1000], values[1000];
+	PGresult *result;
+	int r, n, nrows, nfields;
+
+	fields[0] = 0;
+	values[0] = 0;
+	strcat(fields, "(");
+	strcat(values, "(");
+
+	sprintf(sql, "SELECT * FROM %s WHERE _prov_p = %s;", tablename, p);
+	result = PQexecSingle(conn, sql);
+
+	fprintf(stderr, "prv_storeRow\t%s\t%s\t", p, tablename);
+
+	nrows = PQntuples ( result );
+	nfields = PQnfields ( result );
+
+	for ( r = 0; r < nrows; r++ ) {
+		for ( n = 0; n < nfields; n++ ) {
+			strcat(fields, PQfname ( result, n ));
+			strcat(values, PQgetvalue ( result, r, n ));
+			if (n < nfields - 1) {
+				strcat(fields, ", ");
+				strcat(values, ", ");
+			}
+		}
+	}
+	strcat(fields, ")");
+	strcat(values, ")");
+
+	fprintf(stderr, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
+	PQclear(result);
+}
+
+// TODO: change this temporary implementation
+static char longmem[10240];
+static char is_init = 0;
+
+void prv_init();
+void prv_init() {
+	is_init = 1;
+	memset(longmem, 0, sizeof(longmem));
+}
+
+void prv_updateProvP(char* p);
+void prv_updateProvP(char* p) {
+	if (!is_init)
+		prv_init();
+	if (strstr(longmem, p) == NULL) {
+		strcat(longmem, ",");
+		strcat(longmem, p);
+	}
+}
+
+void prv_accessProvP(char* p, char* tablename, PGconn* conn);
+void prv_accessProvP(char* p, char* tablename, PGconn* conn) {
+	if (!is_init)
+		prv_init();
+	if (strstr(longmem, p) == NULL) {
+		prv_storeRow(p, tablename, conn);
+		prv_updateProvP(p);
+	}
+}
+
+char* prv_getInsertIds(PGresult *result, char* tablename, PGconn* conn);
+char* prv_getInsertIds(PGresult *result, char* tablename, PGconn* conn) {
 	int r, pn, vn;
 	int nrows = PQntuples ( result );
 	char selectid[30]; // 30 chars per insertid
@@ -713,14 +779,14 @@ char* prv_getInsertIds(PGresult *result) {
 	for ( r = 0; r < nrows; r++ ) {
 		prov_p = PQgetvalue ( result, r, pn );
 		if (strlen(prov_p) > 0) {
-			// newly inserted?
-			// TODO: check for same-session inserted prov_p
+			prv_accessProvP(prov_p, tablename, conn);
 			sprintf (selectid, "%s.%s.",
 					 PQgetvalue ( result, r, pn ),
 					 PQgetvalue ( result, r, vn ) );
 			strcat(strlist, selectid);
 		} else {
-			// todo
+			// should not happen
+			fprintf(stderr, "ERROR prov_p == ''\n");
 		}
 	}
 	if (strlist[0] != '\0') { // not empty, need to remove the end "."
@@ -733,12 +799,17 @@ char* prv_getInsertIds(PGresult *result) {
 void prv_modifytable(PGconn* conn, char* tablename);
 void prv_modifytable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
-	// generate "ALTER TABLE tbl1 ADD COLUMN _prov_p bigint, ADD COLUMN _prov_v integer;"
-	PGresult *result = PQexecSingle(conn, "ALTER TABLE tbl1 "
-			"ADD COLUMN _prov_p bigint, ADD COLUMN _prov_v integer;");
+	char sql[1000];
+	PGresult *result;
+
+	sprintf(sql, "ALTER TABLE %s "
+			"ADD COLUMN _prov_p bigint, ADD COLUMN _prov_v integer;", tablename);
+	result = PQexecSingle(conn, sql);
 	PQclear(result);
-	result = PQexecSingle(conn, "UPDATE tbl1 SET (_prov_p, _prov_v) = ((SELECT ('x'||lpad( md5(ctid::text),16,'0'))::bit(64)::bigint), 1) "
-	"WHERE _prov_p IS NULL;");
+
+	sprintf(sql, "UPDATE %s SET (_prov_p, _prov_v) = ((SELECT ('x'||lpad( md5(ctid::text || now()::text),16,'0'))::bit(64)::bigint), 1) "
+			"WHERE _prov_p IS NULL;", tablename);
+	result = PQexecSingle(conn, sql);
 	PQclear(result);
 }
 
@@ -1521,6 +1592,7 @@ PQexec(PGconn *conn, const char *query)
 {
 	sll queryid;
 	uint64_t timeus;
+	PGresult *result;
 	int type;
 	char tablename[256];
 	char *prov_query = prv_createQuery(query, &queryid, &timeus, &type, tablename);
@@ -1528,16 +1600,17 @@ PQexec(PGconn *conn, const char *query)
 		//printf("db: %s %s\n", tablename, prov_query);
 		if (type == INSERT_STMT) {
 			prv_modifytable(conn, tablename);
-			PGresult *result = PQexecSingle(conn, prov_query);
+			prv_updateProvP(queryid);
+			result = PQexecSingle(conn, prov_query);
 			free(prov_query);
 			return result;
 		}
 		if (type == SELECT_STMT) {
 			prv_modifytable(conn, tablename);
-			PGresult *result = PQexecSingle(conn, prov_query);
+			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
-				char *insertIds = prv_getInsertIds(result);
+				char *insertIds = prv_getInsertIds(result, tablename, conn);
 				prv_storeSelect(queryid, insertIds, timeus, query);
 				if (insertIds != NULL)
 					free(insertIds);
