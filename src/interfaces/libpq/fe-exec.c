@@ -708,17 +708,20 @@ void prv_restoretable(PGconn *conn, FILE *f_in);
 void prv_restoretable(PGconn *conn, FILE *f_in) {
 	char line[STR_LONG_LEN], *start;
 	PGresult *result;
-	int restatus;
+	int restatus, iamtheone = 0;
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
+		logdb("get %s\n", line);
 		if (strstr(line, "prv_store_table") == line) {
 			start = line;
 			start = strstr(start, "\t") + 1;
 			logdb("restored sql: %s", start);
 			result = PQexecSingle(conn, start);
 			restatus = PQresultStatus(result);
-			if (restatus != PGRES_COMMAND_OK) {
+			if (!iamtheone && restatus != PGRES_COMMAND_OK) {
 				logdb("stop, status is %s\n", PQresStatus(restatus));
 				return;
+			} else {
+				iamtheone = 1;
 			}
 		} else if (strstr(line, "prv_store_row") == line) {
 			start = line;
@@ -1043,7 +1046,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 
 		token = strtok(s, " ");
 		token = strtok(NULL, " "); // bypass the "SELECT " at start
-		strcpy(result, "SELECT PROVENANCE * ");
+		strcpy(result, "SELECT PROVENANCE * FROM ");
 		state = 1;
 		while (token) {
 			if (state != 2 && state != 3) {
@@ -1060,8 +1063,11 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 				state = 3;
 			if (strcasecmp(token, "FROM")==0 && state >= 3)
 				state = 4;
-			if (strcasecmp(token, "WHERE")==0 && state >= 3)
+			if (strcasecmp(token, "WHERE")==0 && state >= 3) {
+				strcat(result, " ");
+				strcat(result, token);
 				state = 4;
+			}
 			if (strcasecmp(token, "RETURNING")==0 && state >= 3)
 				state = 4;
 			token = strtok(NULL, " ");
@@ -1069,6 +1075,44 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		//~ prv_store(queryid, version, timeus, query);
 		return result;
 	}
+
+	if (strncasecmp(query, "DELETE ", 7)==0) { // delete statement(s)
+			*type = DELETE_STMT;
+			result = malloc(1000);
+			state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+			strcpy(s, query);
+			result[0] = '\0';
+
+			token = strtok(s, " ");
+			token = strtok(NULL, " "); // bypass the "SELECT " at start
+			strcpy(result, "SELECT PROVENANCE * FROM ");
+			state = 0;
+			while (token) {
+				if (state == 3) {
+					strcat(result, " ");
+					strcat(result, token);
+				}
+				if (state == 1) {
+					strcat(result, token);
+					// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+					strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
+					state = 2;
+					strcpy(tablename, token);
+				}
+				if (strcasecmp(token, "FROM")==0 && state == 0)
+					state = 1;
+				if (strcasecmp(token, "WHERE")==0 && state == 2) {
+					strcat(result, " ");
+					strcat(result, token);
+					state = 3;
+				}
+				if (strcasecmp(token, "RETURNING")==0 && state == 3)
+					state = 4;
+				token = strtok(NULL, " ");
+			}
+			//~ prv_store(queryid, version, timeus, query);
+			return result;
+		}
 
 	if (strncasecmp(query, "SELECT ", 7)==0) { // select statement(s)
 		*type = SELECT_STMT;
@@ -1834,7 +1878,7 @@ PQexec(PGconn *conn, const char *query)
 			free(prov_query);
 			return result;
 		}
-		if (type == SELECT_STMT || type == UPDATE_STMT) {
+		if (type == SELECT_STMT || type == UPDATE_STMT || type == DELETE_STMT) {
 			prv_modifytable(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query

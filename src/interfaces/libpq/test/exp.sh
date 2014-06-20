@@ -18,7 +18,7 @@ sleep 3
 
 # start clients
 #./single "host=localhost dbname=single" 100 2>100.log &
-./single "host=localhost dbname=single" 99 2>/dev/null &
+./single "host=localhost dbname=single" 99 &
 ./single "host=localhost dbname=single" 98 &
 
 # start query
