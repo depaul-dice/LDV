@@ -23,20 +23,22 @@ tar xzf $oldpath/data.startup.tgz
 cd $oldpath
 
 ### start
-export PTU_SESSION_ID=1001
+export PTU_DBSESSION_ID=1001
 unset PTU_DB_REPLAY
 rm *.dblog
 #~ ./exp.sh
 ~/assi/cde/ptu $@ ./exp.sh
 
 # prepare minimal database
-#~ cd $PERM
-#~ bin/pg_ctl stop -D data
-#~ rm -rf data
-#~ bin/initdb -D data
+cd cde-package/cde-root/$PERM
+bin/pg_ctl stop -D data >/dev/null 2>&1
+rm -rf data
+$PERM/bin/initdb -D data >/dev/null 2>&1
+cd $oldpath
 
 ### post-process db for indirect (spawn) links
 cat *.dblog > dblog.txt
+ln dblog.txt cde-package/cde-root/
 #~ cat 100.log | python insertdb.py
 #~ cat 99.log | python insertdb.py
 #~ cat 0.log | python insertdb.py

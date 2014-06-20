@@ -671,6 +671,10 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  * ============ QUAN's hack ===============
  */
 
+#define DEBUG 1
+#define logdb(fmt, ...) \
+    do { if (DEBUG) fprintf(stderr, "DEBUG: " fmt, __VA_ARGS__); } while (0)
+
 typedef long long sll; // signed long long
 #define STR_LEN 50
 #define STR_LONG_LEN 10240
@@ -688,7 +692,7 @@ char* prv_get_stored_dbname(FILE *f_in);
 char* prv_get_stored_dbname(FILE *f_in) {
 	char line[STR_LONG_LEN];
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
-		printf("%s\n", line);
+		logdb("%s\n", line);
 		if (strstr(line, "prv_store_conn") == line) {
 			char *start = line + strlen("prv_store_conn") + 1;
 			char *end = strstr(start, "\t");
@@ -707,22 +711,21 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 	int restatus;
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
 		if (strstr(line, "prv_store_table") == line) {
-			// CREATE TABLE tbl1 (id integer,value integer,_prov_p character varying(40) DEFAULT md5((random())::text),_prov_insertedby integer DEFAULT 0,_prov_v timestamp without time zone DEFAULT now(),_prov_rowid character varying(32) DEFAULT md5((random())::text));
 			start = line;
 			start = strstr(start, "\t") + 1;
-			printf("restored sql: %s", start);
+			logdb("restored sql: %s", start);
 			result = PQexecSingle(conn, start);
 			restatus = PQresultStatus(result);
 			if (restatus != PGRES_COMMAND_OK) {
-				printf("stop, status is %s\n", PQresStatus(restatus));
+				logdb("stop, status is %s\n", PQresStatus(restatus));
 				return;
 			}
-		} else if (strstr(line, "prv_storeRow") == line) {
+		} else if (strstr(line, "prv_store_row") == line) {
 			start = line;
 			start = strstr(start, "\t") + 1;
 			start = strstr(start, "\t") + 1;
 			start = strstr(start, "\t") + 1;
-			printf("restored sql: %s", start);
+			logdb("restored sql: %s", start);
 			PQexecSingle(conn, start);
 		}
 	}
@@ -752,7 +755,7 @@ void prv_restoredb(char *conninfo) {
 			strncpy(dbname, start, end - start);
 			strcpy(new_conninfo, end);
 		}
-		printf("dbname '%s' - conn '%s'\n", dbname, new_conninfo);
+		logdb("dbname '%s' - conn '%s'\n", dbname, new_conninfo);
 
 		// check if this matched stored dbname
 		stored_dbname = prv_get_stored_dbname(f_in_dblog);
@@ -766,7 +769,7 @@ void prv_restoredb(char *conninfo) {
 		conn = PQconnectdbSingle(new_conninfo);
 		sprintf(sql, "CREATE DATABASE %s;", dbname);
 		PQexecSingle(conn, sql);
-		printf("recreate db with '%s'\n", sql);
+		logdb("recreate db with '%s'\n", sql);
 		PQfinishSingle(conn);
 
 		// reconnect with original conninfo and restore database
@@ -790,6 +793,7 @@ void prv_init(PGconn* conn) {
 	if (session != NULL) sessionid = atoi(session);
 	sprintf(filename, "%d.%d.dblog", sessionid, getpid());
 	f_out_dblog = fopen(filename, "w");
+	fprintf(f_out_dblog, "prv_init\t%s\n", session);
 	prv_storeConnection(conn);
 }
 
@@ -823,11 +827,52 @@ void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const cha
 			getpid(), selectid, insertids, timeus, sql);
 }
 
-void prv_storeRow(char *rowids, char* tablename, PGconn* conn);
-void prv_storeRow(char *rowids, char* tablename, PGconn* conn) {
-	char sql[1000], fields[1000], values[1000];
+void prv_store_table(char* tablename, PGconn* conn);
+// CREATE TABLE tbl1 (id integer,value integer,_prov_p character varying(40) DEFAULT md5((random())::text),
+//_prov_insertedby integer DEFAULT 0,_prov_v timestamp without time zone DEFAULT now(),
+//_prov_rowid character varying(32) DEFAULT md5((random())::text));
+void prv_store_table(char* tablename, PGconn* conn) {
+	char sql[STR_LONG_LEN], sqltable[STR_LONG_LEN];
+	int nrows, r;
+	PGresult *result;
+
+	// extract table information from info_schema.columns
+	sprintf(sql, "select column_name, data_type, character_maximum_length, column_default "
+			"from INFORMATION_SCHEMA.COLUMNS where table_name = '%s'", tablename);
+	result = PQexecSingle(conn, sql);
+	nrows = PQntuples ( result );
+	sqltable[0] = '\0';
+	strcat(sqltable, "CREATE TABLE ");
+	strcat(sqltable, tablename);
+	strcat(sqltable, " (");
+	for (r = 0; r < nrows; r++) {
+		strcat(sqltable, PQgetvalue ( result, r, 0 )); // column_name
+		strcat(sqltable, " ");
+		strcat(sqltable, PQgetvalue( result, r, 1));
+		if (strlen(PQgetvalue( result, r, 2)) > 0) {
+			strcat(sqltable, "(");
+			strcat(sqltable, PQgetvalue( result, r, 2));
+			strcat(sqltable, ")");
+		}
+		if (strlen(PQgetvalue( result, r, 3)) > 0) {
+			strcat(sqltable, " DEFAULT ");
+			strcat(sqltable, PQgetvalue( result, r, 3));
+		}
+		if (r < nrows - 1)
+			strcat(sqltable, ", ");
+		else
+			strcat(sqltable, ");");
+	}
+	fprintf(f_out_dblog, "prv_store_table\t%s\n", sqltable);
+}
+
+void prv_store_row(char *rowids, char* tablename, PGconn* conn);
+void prv_store_row(char *rowids, char* tablename, PGconn* conn) {
+	char sql[STR_LONG_LEN], fields[STR_LONG_LEN], values[STR_LONG_LEN];
 	PGresult *result;
 	int r, n, nrows, nfields;
+
+	prv_store_table(tablename, conn);
 
 	sprintf(sql,
 			//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
@@ -860,7 +905,7 @@ void prv_storeRow(char *rowids, char* tablename, PGconn* conn) {
 			} else
 				strcat(values, "')");
 		}
-		fprintf(f_out_dblog, "prv_storeRow\t%s\t%s\t",
+		fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
 				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
 				tablename);
 		fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
@@ -876,7 +921,7 @@ void prv_updateProvP(char* p) {
 
 void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn);
 void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn) {
-		prv_storeRow(rowidlist, tablename, conn);
+		prv_store_row(rowidlist, tablename, conn);
 		prv_updateProvP(rowidlist);
 }
 
@@ -921,10 +966,10 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 	PGresult *result;
 	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
 	sprintf(sql, "ALTER TABLE %s "
-			"ADD COLUMN _prov_p varchar(40) default md5(random()::text), "
-			"ADD COLUMN _prov_insertedby integer default 0, "
-			"ADD COLUMN _prov_v timestamp default now(), "
-			"ADD COLUMN _prov_rowid varchar(32) default md5(random()::text),"
+			"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
+			"ADD COLUMN _prov_insertedby integer DEFAULT 0, "
+			"ADD COLUMN _prov_v timestamp DEFAULT now(), "
+			"ADD COLUMN _prov_rowid varchar(32) DEFAULT md5(random()::text),"
 			"ADD UNIQUE (_prov_rowid);",
 			tablename);
 	result = PQexecSingle(conn, sql);
@@ -1092,7 +1137,7 @@ char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 	sprintf(queryid, "%lld", prv_hash(astr));
 
 	res = prv_assembleQuery(query, queryid, version, *timeus, type, tablename);
-	//~ printf("DEBUG: %s\n", res);
+	//~ logdb("%s\n", res);
 	return res;
 }
 /*
