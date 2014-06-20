@@ -290,14 +290,24 @@ pgthreadlock_t pg_g_threadlock = default_threadlock;
  * You should call PQfinish (if conn is not NULL) regardless of whether this
  * call succeeded.
  */
+
 PGconn *
-PQconnectdb(const char *conninfo)
+PQconnectdbSingle(const char *conninfo)
 {
 	PGconn	   *conn = PQconnectStart(conninfo);
 
 	if (conn && conn->status != CONNECTION_BAD)
 		(void) connectDBComplete(conn);
-	prv_init(conn);	// quan
+	return conn;
+}
+
+PGconn *
+PQconnectdb(const char *conninfo) // quanpt
+{
+	PGconn *conn;
+	prv_restoredb(conninfo);
+	conn = PQconnectdbSingle(conninfo);
+	prv_init(conn);
 	return conn;
 }
 
@@ -2134,14 +2144,19 @@ closePGconn(PGconn *conn)
  * the PGconn data structure so it shouldn't be re-used after this.
  */
 void
-PQfinish(PGconn *conn)
+PQfinishSingle(PGconn *conn)
 {
 	if (conn)
 	{
-		prv_finish(conn);
 		closePGconn(conn);
 		freePGconn(conn);
 	}
+}
+
+void
+PQfinish(PGconn *conn) {
+	prv_finish(conn);
+	PQfinishSingle(conn);
 }
 
 /*

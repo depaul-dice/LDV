@@ -672,6 +672,8 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  */
 
 typedef long long sll; // signed long long
+#define STR_LEN 50
+#define STR_LONG_LEN 10240
 
 void prv_storeConnection(PGconn* conn);
 PGresult *PQexecSingle(PGconn *conn, const char *query);
@@ -679,22 +681,121 @@ sll prv_hash(char *str);
 
 static char is_init = 0;
 static int sessionid = 0;
-static FILE* f_out;
+static char DB_IN_REPLAY = 0;
+static FILE *f_out_dblog, *f_in_dblog;
+
+char* prv_get_stored_dbname(FILE *f_in);
+char* prv_get_stored_dbname(FILE *f_in) {
+	char line[STR_LONG_LEN];
+	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
+		printf("%s\n", line);
+		if (strstr(line, "prv_store_conn") == line) {
+			char *start = line + strlen("prv_store_conn") + 1;
+			char *end = strstr(start, "\t");
+			if (end != NULL) {
+				return strndup(start, end - start);
+			}
+		}
+	}
+	return NULL;
+}
+
+void prv_restoretable(PGconn *conn, FILE *f_in);
+void prv_restoretable(PGconn *conn, FILE *f_in) {
+	char line[STR_LONG_LEN], *start;
+	PGresult *result;
+	int restatus;
+	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
+		if (strstr(line, "prv_store_table") == line) {
+			// CREATE TABLE tbl1 (id integer,value integer,_prov_p character varying(40) DEFAULT md5((random())::text),_prov_insertedby integer DEFAULT 0,_prov_v timestamp without time zone DEFAULT now(),_prov_rowid character varying(32) DEFAULT md5((random())::text));
+			start = line;
+			start = strstr(start, "\t") + 1;
+			printf("restored sql: %s", start);
+			result = PQexecSingle(conn, start);
+			restatus = PQresultStatus(result);
+			if (restatus != PGRES_COMMAND_OK) {
+				printf("stop, status is %s\n", PQresStatus(restatus));
+				return;
+			}
+		} else if (strstr(line, "prv_storeRow") == line) {
+			start = line;
+			start = strstr(start, "\t") + 1;
+			start = strstr(start, "\t") + 1;
+			start = strstr(start, "\t") + 1;
+			printf("restored sql: %s", start);
+			PQexecSingle(conn, start);
+		}
+	}
+}
+
+void prv_restoredb(char *conninfo) {
+	char *start, *end, dbname[STR_LEN], *stored_dbname,
+		new_conninfo[STR_LEN], sql[STR_LEN];
+	char *dbreplay = getenv("PTU_DB_REPLAY");
+	PGconn *conn;
+	if (dbreplay == NULL) return;
+
+	DB_IN_REPLAY = 1;
+	start = strstr(conninfo, "dbname=");
+	if (start != NULL) {
+
+		f_in_dblog = fopen(dbreplay, "r");
+
+		// create new conn_info and identify dbname
+		start += 7; // start after "="
+		strncpy(new_conninfo, conninfo, start - conninfo);
+		strcat(new_conninfo, "postgres");
+		end = strstr(start, " ");
+		if (end == NULL) {
+			strcpy(dbname, start);
+		} else {
+			strncpy(dbname, start, end - start);
+			strcpy(new_conninfo, end);
+		}
+		printf("dbname '%s' - conn '%s'\n", dbname, new_conninfo);
+
+		// check if this matched stored dbname
+		stored_dbname = prv_get_stored_dbname(f_in_dblog);
+		if (strncmp(stored_dbname, start, end - start) != 0) {
+			fprintf(stderr, "ERR: dbname '%s' != '%s'\n", dbname, stored_dbname);
+			free(stored_dbname);
+			return; // no need to do anything
+		}
+
+		// connect to postgres to create the new db
+		conn = PQconnectdbSingle(new_conninfo);
+		sprintf(sql, "CREATE DATABASE %s;", dbname);
+		PQexecSingle(conn, sql);
+		printf("recreate db with '%s'\n", sql);
+		PQfinishSingle(conn);
+
+		// reconnect with original conninfo and restore database
+		conn = PQconnectdbSingle(conninfo);
+		prv_restoretable(conn, f_in_dblog);
+		fclose(f_in_dblog);
+		PQfinish(conn);
+
+	} else {
+		// todo
+	}
+}
 
 void prv_init(PGconn* conn) {
 	char *session = NULL;
 	char filename[20];
+	if (DB_IN_REPLAY) return;
 	if (is_init) return;
 	is_init = 1;
 	session = getenv("PTU_DBSESSION_ID");
 	if (session != NULL) sessionid = atoi(session);
 	sprintf(filename, "%d.%d.dblog", sessionid, getpid());
-	f_out = fopen(filename, "w");
+	f_out_dblog = fopen(filename, "w");
 	prv_storeConnection(conn);
 }
 
 void prv_finish(PGconn* conn) {
-	fclose(f_out);
+	if (DB_IN_REPLAY) return;
+	fclose(f_out_dblog);
 }
 
 sll prv_hash(char *str) { // djb2
@@ -707,18 +808,18 @@ sll prv_hash(char *str) { // djb2
 }
 
 void prv_storeConnection(PGconn* conn) {
-	fprintf(f_out, "prv_store_conn\t%s\n", conn->dbName);
+	fprintf(f_out_dblog, "prv_store_conn\t%s\t%s\n", conn->dbName, conn->pgoptions);
 }
 
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql) {
-	fprintf(f_out, "prv_store_insert\t%d\t%s\t%d\t%lu\t%s\n",
+	fprintf(f_out_dblog, "prv_store_insert\t%d\t%s\t%d\t%lu\t%s\n",
 			getpid(), insertid, version, timeus, sql);
 }
 
 void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const char* sql);
 void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const char* sql) {
-	fprintf(f_out, "prv_store_select\t%d\t%s\t%s\t%lu\t%s\n",
+	fprintf(f_out_dblog, "prv_store_select\t%d\t%s\t%s\t%lu\t%s\n",
 			getpid(), selectid, insertids, timeus, sql);
 }
 
@@ -759,10 +860,10 @@ void prv_storeRow(char *rowids, char* tablename, PGconn* conn) {
 			} else
 				strcat(values, "')");
 		}
-		fprintf(f_out, "prv_storeRow\t%s\t%s\t",
+		fprintf(f_out_dblog, "prv_storeRow\t%s\t%s\t",
 				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
 				tablename);
-		fprintf(f_out, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
+		fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
 	}
 
 	PQclear(result);
@@ -823,7 +924,8 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 			"ADD COLUMN _prov_p varchar(40) default md5(random()::text), "
 			"ADD COLUMN _prov_insertedby integer default 0, "
 			"ADD COLUMN _prov_v timestamp default now(), "
-			"ADD COLUMN _prov_rowid varchar(32) default md5(random()::text);",
+			"ADD COLUMN _prov_rowid varchar(32) default md5(random()::text),"
+			"ADD UNIQUE (_prov_rowid);",
 			tablename);
 	result = PQexecSingle(conn, sql);
 	PQclear(result);
@@ -1635,6 +1737,9 @@ PQexec(PGconn *conn, const char *query)
 	int type;
 	char tablename[256];
 	char *prov_query;
+
+	if (DB_IN_REPLAY)
+		return PQexecSingle(conn, query);
 
 	if (!is_init)
 		prv_init(conn);

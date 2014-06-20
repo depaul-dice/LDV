@@ -522,6 +522,9 @@ extern int	pg_valid_server_encoding_id(int encoding);
 
 void prv_init(PGconn* conn);
 void prv_finish(PGconn* conn);
+void prv_restoredb(char *conninfo);
+PGconn *PQconnectdbSingle(const char *conninfo);
+void PQfinishSingle(PGconn *conn);
 
 #ifdef __cplusplus
 }
