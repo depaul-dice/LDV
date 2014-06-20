@@ -107,11 +107,12 @@ int main(int argc, char** argv) {
           // insert randome stuff
           insert(conn);
           insert(conn);
-          
+          doSQL ( conn, "UPDATE tbl1 SET value=40 WHERE value = 101;");
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
-          doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
+          // doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
           // doSQL ( conn, "SELECT * FROM tbl1" );
+          // doSQL ( conn, "select sum(tbl1.value) from tbl2 join tbl1 on tbl1.id=tbl2.id where tbl2.value < 50;");
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );

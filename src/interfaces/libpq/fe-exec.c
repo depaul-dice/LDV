@@ -1034,6 +1034,42 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		return result;
 	}
 	
+	if (strncasecmp(query, "UPDATE ", 7)==0) { // update statement(s)
+		*type = UPDATE_STMT;
+		result = malloc(1000);
+		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+		strcpy(s, query);
+		result[0] = '\0';
+
+		token = strtok(s, " ");
+		token = strtok(NULL, " "); // bypass the "SELECT " at start
+		strcpy(result, "SELECT PROVENANCE * ");
+		state = 1;
+		while (token) {
+			if (state != 2 && state != 3) {
+				strcat(result, " ");
+				strcat(result, token);
+			}
+			if (state == 1) {
+				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
+				state = 2;
+				strcpy(tablename, token);
+			}
+			if (strcasecmp(token, "SET")==0 && state == 2)
+				state = 3;
+			if (strcasecmp(token, "FROM")==0 && state >= 3)
+				state = 4;
+			if (strcasecmp(token, "WHERE")==0 && state >= 3)
+				state = 4;
+			if (strcasecmp(token, "RETURNING")==0 && state >= 3)
+				state = 4;
+			token = strtok(NULL, " ");
+		}
+		//~ prv_store(queryid, version, timeus, query);
+		return result;
+	}
+
 	if (strncasecmp(query, "SELECT ", 7)==0) { // select statement(s)
 		*type = SELECT_STMT;
 		result = malloc(1000);
@@ -1061,45 +1097,45 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		return result;
 	}
 	
-	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
-		return NULL; // no need
-		result = malloc(1000);
-		state = 0; // 0 ..., 1 = TABLE "table", 2..., 3 = "xxx)"
-		strcpy(s, query);
-		result[0] = '\0';
-		
-		token = strtok(s, " ");
-		while (token) {
-			if (state != 4) {
-				strcat(result, " ");
-				strcat(result, token);
-			}
-			if (state == 1) {
-				strcat(result, "_prov_");
-				state = 2;
-			}
-			if (strcasecmp(token, "TABLE")==0 && state == 0)
-				state = 1;
-			token = strtok(NULL, " ");
-			if (token == NULL) {
-				result[strlen(result)-1] = '\0'; // remove the last ")"
-				strcat(result, ", _prov_p BIGINT, _prov_v INTEGER);\n");
-			}
-		}
-		return result;
-	}
-	
-	if (strncasecmp(query, "DROP TABLE ", 10)==0) { // drop statement(s)
-		return NULL; // no need
-		result = malloc(1000);
-		state = 0; // 0 ..., 1 = TABLE "table"
-		strcpy(s, query);
-		result[0] = '\0';
-		
-		strcat(result, query);
-		strcat(result, "_prov_;\n");
-		return result;
-	}
+//	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
+//		return NULL; // no need
+//		result = malloc(1000);
+//		state = 0; // 0 ..., 1 = TABLE "table", 2..., 3 = "xxx)"
+//		strcpy(s, query);
+//		result[0] = '\0';
+//
+//		token = strtok(s, " ");
+//		while (token) {
+//			if (state != 4) {
+//				strcat(result, " ");
+//				strcat(result, token);
+//			}
+//			if (state == 1) {
+//				strcat(result, "_prov_");
+//				state = 2;
+//			}
+//			if (strcasecmp(token, "TABLE")==0 && state == 0)
+//				state = 1;
+//			token = strtok(NULL, " ");
+//			if (token == NULL) {
+//				result[strlen(result)-1] = '\0'; // remove the last ")"
+//				strcat(result, ", _prov_p BIGINT, _prov_v INTEGER);\n");
+//			}
+//		}
+//		return result;
+//	}
+//
+//	if (strncasecmp(query, "DROP TABLE ", 10)==0) { // drop statement(s)
+//		return NULL; // no need
+//		result = malloc(1000);
+//		state = 0; // 0 ..., 1 = TABLE "table"
+//		strcpy(s, query);
+//		result[0] = '\0';
+//
+//		strcat(result, query);
+//		strcat(result, "_prov_;\n");
+//		return result;
+//	}
 	return NULL;
 }
 
@@ -1137,7 +1173,6 @@ char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 	sprintf(queryid, "%lld", prv_hash(astr));
 
 	res = prv_assembleQuery(query, queryid, version, *timeus, type, tablename);
-	//~ logdb("%s\n", res);
 	return res;
 }
 /*
@@ -1765,7 +1800,7 @@ PQgetResult(PGconn *conn)
 PGresult *
 PQexecSingle(PGconn *conn, const char *query)
 {
-	//printf("sql: %s\n", query);
+	logdb("pqexec: %s\n", query);
 	if (!PQexecStart(conn))
 		return NULL;
 	if (!PQsendQuery(conn, query))
@@ -1799,7 +1834,7 @@ PQexec(PGconn *conn, const char *query)
 			free(prov_query);
 			return result;
 		}
-		if (type == SELECT_STMT) {
+		if (type == SELECT_STMT || type == UPDATE_STMT) {
 			prv_modifytable(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
