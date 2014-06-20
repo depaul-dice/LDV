@@ -297,7 +297,7 @@ PQconnectdb(const char *conninfo)
 
 	if (conn && conn->status != CONNECTION_BAD)
 		(void) connectDBComplete(conn);
-
+	prv_init(conn);	// quan
 	return conn;
 }
 
@@ -2138,6 +2138,7 @@ PQfinish(PGconn *conn)
 {
 	if (conn)
 	{
+		prv_finish(conn);
 		closePGconn(conn);
 		freePGconn(conn);
 	}

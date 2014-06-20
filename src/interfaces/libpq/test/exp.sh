@@ -18,11 +18,11 @@ sleep 3
 
 # start clients
 #./single "host=localhost dbname=single" 100 2>100.log &
-./single "host=localhost dbname=single" 99 2>99.log &
-./single "host=localhost dbname=single" 98 2>100.log &
+./single "host=localhost dbname=single" 99 &
+./single "host=localhost dbname=single" 98 &
 
 # start query
-sleep 6 && ./query "host=localhost dbname=single" 0 2>0.log
+sleep 6 && ./query "host=localhost dbname=single" 0
 
 # stop perm
 sleep 1

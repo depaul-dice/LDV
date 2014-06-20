@@ -16,6 +16,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
 #include "libpq-fe.h"
 #include "libpq-int.h"
@@ -669,11 +670,33 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
 /*
  * ============ QUAN's hack ===============
  */
-PGresult *
-PQexecSingle(PGconn *conn, const char *query);
 
 typedef long long sll; // signed long long
+
+void prv_storeConnection(PGconn* conn);
+PGresult *PQexecSingle(PGconn *conn, const char *query);
 sll prv_hash(char *str);
+
+static char is_init = 0;
+static int sessionid = 0;
+static FILE* f_out;
+
+void prv_init(PGconn* conn) {
+	char *session = NULL;
+	char filename[20];
+	if (is_init) return;
+	is_init = 1;
+	session = getenv("PTU_DBSESSION_ID");
+	if (session != NULL) sessionid = atoi(session);
+	sprintf(filename, "%d.%d.dblog", sessionid, getpid());
+	f_out = fopen(filename, "w");
+	prv_storeConnection(conn);
+}
+
+void prv_finish(PGconn* conn) {
+	fclose(f_out);
+}
+
 sll prv_hash(char *str) { // djb2
     sll hash = 5381;
     int c;
@@ -683,88 +706,85 @@ sll prv_hash(char *str) { // djb2
     return hash;
 }
 
-void prv_storeInsert(sll insertid, int version, uint64_t timeus, const char* sql);
-void prv_storeInsert(sll insertid, int version, uint64_t timeus, const char* sql) {
-	fprintf(stderr, "prv_store_insert\t%d\t%lld\t%d\t%lu\t%s\n", getpid(), insertid, version, timeus, sql);
+void prv_storeConnection(PGconn* conn) {
+	fprintf(f_out, "prv_store_conn\t%s\n", conn->dbName);
 }
 
-void prv_storeSelect(sll selectid, char* insertids, uint64_t timeus, const char* sql);
-void prv_storeSelect(sll selectid, char* insertids, uint64_t timeus, const char* sql) {
-	fprintf(stderr, "prv_store_select\t%d\t%lld\t%s\t%lu\t%s\n", getpid(), selectid, insertids, timeus, sql);
+void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
+void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql) {
+	fprintf(f_out, "prv_store_insert\t%d\t%s\t%d\t%lu\t%s\n",
+			getpid(), insertid, version, timeus, sql);
 }
 
-void prv_storeRow(char *p, char* tablename, PGconn* conn);
-void prv_storeRow(char *p, char* tablename, PGconn* conn) {
+void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const char* sql);
+void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const char* sql) {
+	fprintf(f_out, "prv_store_select\t%d\t%s\t%s\t%lu\t%s\n",
+			getpid(), selectid, insertids, timeus, sql);
+}
+
+void prv_storeRow(char *rowids, char* tablename, PGconn* conn);
+void prv_storeRow(char *rowids, char* tablename, PGconn* conn) {
 	char sql[1000], fields[1000], values[1000];
 	PGresult *result;
 	int r, n, nrows, nfields;
 
-	fields[0] = 0;
-	values[0] = 0;
-	strcat(fields, "(");
-	strcat(values, "(");
-
-	sprintf(sql, "SELECT * FROM %s WHERE _prov_p = %s;", tablename, p);
+	sprintf(sql,
+			//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
+			"UPDATE %s SET _prov_insertedby = %d "
+			"WHERE _prov_rowid LIKE any(string_to_array('%s',',')) RETURNING *;",
+			tablename, sessionid, rowids);
 	result = PQexecSingle(conn, sql);
 
-	fprintf(stderr, "prv_storeRow\t%s\t%s\t", p, tablename);
-
 	nrows = PQntuples ( result );
+
+	// prepare field name list
+	fields[0] = 0;
+	strcat(fields, "(");
 	nfields = PQnfields ( result );
+	for ( n = 0; n < nfields; n++ ) {
+		strcat(fields, PQfname ( result, n ));
+		if (n < nfields - 1) {
+			strcat(fields, ", ");
+		} else
+			strcat(fields, ")");
+	}
 
 	for ( r = 0; r < nrows; r++ ) {
+		values[0] = 0;
+		strcat(values, "('");
 		for ( n = 0; n < nfields; n++ ) {
-			strcat(fields, PQfname ( result, n ));
 			strcat(values, PQgetvalue ( result, r, n ));
 			if (n < nfields - 1) {
-				strcat(fields, ", ");
-				strcat(values, ", ");
-			}
+				strcat(values, "', '");
+			} else
+				strcat(values, "')");
 		}
+		fprintf(f_out, "prv_storeRow\t%s\t%s\t",
+				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
+				tablename);
+		fprintf(f_out, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
 	}
-	strcat(fields, ")");
-	strcat(values, ")");
 
-	fprintf(stderr, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
 	PQclear(result);
-}
-
-// TODO: change this temporary implementation
-static char longmem[10240];
-static char is_init = 0;
-
-void prv_init();
-void prv_init() {
-	is_init = 1;
-	memset(longmem, 0, sizeof(longmem));
 }
 
 void prv_updateProvP(char* p);
 void prv_updateProvP(char* p) {
-	if (!is_init)
-		prv_init();
-	if (strstr(longmem, p) == NULL) {
-		strcat(longmem, ",");
-		strcat(longmem, p);
-	}
+	// TODO
 }
 
-void prv_accessProvP(char* p, char* tablename, PGconn* conn);
-void prv_accessProvP(char* p, char* tablename, PGconn* conn) {
-	if (!is_init)
-		prv_init();
-	if (strstr(longmem, p) == NULL) {
-		prv_storeRow(p, tablename, conn);
-		prv_updateProvP(p);
-	}
+void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn);
+void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn) {
+		prv_storeRow(rowidlist, tablename, conn);
+		prv_updateProvP(rowidlist);
 }
 
-char* prv_getInsertIds(PGresult *result, char* tablename, PGconn* conn);
-char* prv_getInsertIds(PGresult *result, char* tablename, PGconn* conn) {
-	int r, pn, vn;
+char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn);
+char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn) {
+	int r, rowid_n, sessionid_n, prov_sessionid = 0;
 	int nrows = PQntuples ( result );
-	char selectid[30]; // 30 chars per insertid
-	char *strlist, *prov_p;
+	char selectid[40]; // 32 UUID + extra chars per insertid
+	char *strlist, *prov_rowid;
 	
 	if (nrows == 0) return NULL;
 	
@@ -773,26 +793,23 @@ char* prv_getInsertIds(PGresult *result, char* tablename, PGconn* conn) {
 	
 	strlist[0] = '\0'; // init empty string
 	
-	pn = PQfnumber(result, "prov___prov__p");
-	vn = PQfnumber(result, "prov___prov__v");
+	rowid_n = PQfnumber(result, "prov___prov__rowid");
+	sessionid_n = PQfnumber(result, "prov___prov__insertedby");
 
 	for ( r = 0; r < nrows; r++ ) {
-		prov_p = PQgetvalue ( result, r, pn );
-		if (strlen(prov_p) > 0) {
-			prv_accessProvP(prov_p, tablename, conn);
-			sprintf (selectid, "%s.%s.",
-					 PQgetvalue ( result, r, pn ),
-					 PQgetvalue ( result, r, vn ) );
+		prov_rowid = PQgetvalue ( result, r, rowid_n );
+		prov_sessionid = atoi(PQgetvalue( result, r, sessionid_n));
+		if (strlen(prov_rowid) > 0 && prov_sessionid != sessionid) {
+			sprintf (selectid, "%s",
+					 PQgetvalue ( result, r, rowid_n ));
 			strcat(strlist, selectid);
-		} else {
-			// should not happen
-			fprintf(stderr, "ERROR prov_p == ''\n");
+			strcat(strlist, ",");
 		}
 	}
 	if (strlist[0] != '\0') { // not empty, need to remove the end "."
 		strlist[strlen(strlist) - 1] = '\0';
+		prv_accessProvP(strlist, tablename, conn);
 	}
-	
 	return strlist;
 }
 
@@ -801,16 +818,21 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
 	char sql[1000];
 	PGresult *result;
-
+	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
 	sprintf(sql, "ALTER TABLE %s "
-			"ADD COLUMN _prov_p bigint, ADD COLUMN _prov_v integer;", tablename);
+			"ADD COLUMN _prov_p varchar(40) default md5(random()::text), "
+			"ADD COLUMN _prov_insertedby integer default 0, "
+			"ADD COLUMN _prov_v timestamp default now(), "
+			"ADD COLUMN _prov_rowid varchar(32) default md5(random()::text);",
+			tablename);
 	result = PQexecSingle(conn, sql);
 	PQclear(result);
 
-	sprintf(sql, "UPDATE %s SET (_prov_p, _prov_v) = ((SELECT ('x'||lpad( md5(ctid::text || now()::text),16,'0'))::bit(64)::bigint), 1) "
-			"WHERE _prov_p IS NULL;", tablename);
-	result = PQexecSingle(conn, sql);
-	PQclear(result);
+//	sprintf(sql, "UPDATE %s SET (_prov_p, _prov_v, _prov_rowid) = "
+//			"('0.' || md5(ctid::text || now()::text), 1, md5(ctid::text || now()::text)) "
+//			"WHERE _prov_p IS NULL;", tablename);
+//	result = PQexecSingle(conn, sql);
+//	PQclear(result);
 }
 
 /*
@@ -824,9 +846,11 @@ void prv_modifytable(PGconn* conn, char* tablename) {
  */
 #define SELECT_STMT 1
 #define INSERT_STMT 2
-char *prv_assembleQuery(const char *query, sll queryid, int version,
+#define UPDATE_STMT 3
+#define DELETE_STMT 4
+char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *tablename);
-char *prv_assembleQuery(const char *query, sll queryid, int version,
+char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *tablename) {
 	char s[1000], *result = NULL, pad[32], *token;
 	char state;
@@ -836,7 +860,7 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = INTO "table", 2..., 3 = "xxx)"
 		strcpy(s, query);
-		memset(result, 0, sizeof(result));
+		result[0] = '\0';
 		
 		token = strtok(s, " ");
 		while (token) {
@@ -854,7 +878,7 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 			token = strtok(NULL, " ");
 			if (token == NULL) {
 				result[strlen(result)-1] = '\0'; // remove the last ")"
-				sprintf(pad, ", %lld, %d);\n", queryid, version);
+				sprintf(pad, ", %s, %d, now());\n", queryid, sessionid);
 				strcat(result, pad);
 			}
 		}
@@ -868,7 +892,7 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
 		strcpy(s, query);
-		memset(result, 0, sizeof(result));
+		result[0] = '\0';
 		
 		token = strtok(s, " ");
 		token = strtok(NULL, " "); // bypass the "SELECT " at start
@@ -877,8 +901,8 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 			strcat(result, " ");
 			strcat(result, token);
 			if (state == 1) {
-				//strcat(result, "_prov_ PROVENANCE(_prov_p, _prov_v)");
-				strcat(result, " PROVENANCE(_prov_p, _prov_v)");
+				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
 				state = 2;
 				strcpy(tablename, token);
 			}
@@ -895,7 +919,7 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = TABLE "table", 2..., 3 = "xxx)"
 		strcpy(s, query);
-		memset(result, 0, sizeof(result));
+		result[0] = '\0';
 		
 		token = strtok(s, " ");
 		while (token) {
@@ -923,7 +947,7 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 		result = malloc(1000);
 		state = 0; // 0 ..., 1 = TABLE "table"
 		strcpy(s, query);
-		memset(result, 0, sizeof(result));
+		result[0] = '\0';
 		
 		strcat(result, query);
 		strcat(result, "_prov_;\n");
@@ -932,9 +956,23 @@ char *prv_assembleQuery(const char *query, sll queryid, int version,
 	return NULL;
 }
 
-char *prv_createQuery(const char *query, sll *queryid, uint64_t *timeus,
+//char* md5(char* string) {
+//	unsigned char digest[16];
+//	char *md5string = malloc(33);
+//	struct MD5Context context;
+//	MD5Init(&context);
+//	MD5Update(&context, string, strlen(string));
+//	MD5Final(digest, &context);
+//	for(int i = 0; i < 16; ++i)
+//		sprintf(&md5string[i*2], "%02x", (unsigned int)digest[i]);
+//	md5string[32]=0;
+//	return md5string;
+//  // use this so other libs not needed: http://openwall.info/wiki/people/solar/software/public-domain-source-code/md5
+//}
+
+char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 		int *type, char *tablename);
-char *prv_createQuery(const char *query, sll *queryid, uint64_t *timeus,
+char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 		int *type, char *tablename) {
 	char astr[1000], *res;
 	int pid;
@@ -949,9 +987,9 @@ char *prv_createQuery(const char *query, sll *queryid, uint64_t *timeus,
 	*timeus = tv.tv_sec*(uint64_t)1000000+tv.tv_usec;
 	
 	sprintf(astr, "%d.%s.%lu", pid, query, *timeus);
-	*queryid = prv_hash(astr);
-	
-	res = prv_assembleQuery(query, *queryid, version, *timeus, type, tablename);
+	sprintf(queryid, "%lld", prv_hash(astr));
+
+	res = prv_assembleQuery(query, queryid, version, *timeus, type, tablename);
 	//~ printf("DEBUG: %s\n", res);
 	return res;
 }
@@ -1580,6 +1618,7 @@ PQgetResult(PGconn *conn)
 PGresult *
 PQexecSingle(PGconn *conn, const char *query)
 {
+	//printf("sql: %s\n", query);
 	if (!PQexecStart(conn))
 		return NULL;
 	if (!PQsendQuery(conn, query))
@@ -1590,12 +1629,17 @@ PQexecSingle(PGconn *conn, const char *query)
 PGresult *
 PQexec(PGconn *conn, const char *query)
 {
-	sll queryid;
+	char queryid[40];
 	uint64_t timeus;
 	PGresult *result;
 	int type;
 	char tablename[256];
-	char *prov_query = prv_createQuery(query, &queryid, &timeus, &type, tablename);
+	char *prov_query;
+
+	if (!is_init)
+		prv_init(conn);
+
+	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);
 	if (prov_query != NULL) {
 		//printf("db: %s %s\n", tablename, prov_query);
 		if (type == INSERT_STMT) {
@@ -1610,7 +1654,7 @@ PQexec(PGconn *conn, const char *query)
 			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
-				char *insertIds = prv_getInsertIds(result, tablename, conn);
+				char *insertIds = prv_getRowIds(result, tablename, conn);
 				prv_storeSelect(queryid, insertIds, timeus, query);
 				if (insertIds != NULL)
 					free(insertIds);

@@ -33,6 +33,7 @@ void doSQL ( PGconn *conn, char *command ) {
 
             printf ( "\n" );
         }
+        break;
     }
     default: {
       break;
@@ -61,14 +62,14 @@ void fakeio(char* pattern, int seed) {
     
     // fake input
     sprintf(path, pattern, "input", seed);
-    printf("read file %s\n", path);
+//    printf("read file %s\n", path);
     fd = fopen(path, "r");
     if (fd != NULL)
         fclose(fd);
 
     // fake output
     sprintf(path, pattern, "output", seed);
-    printf("write file %s\n", path);
+//    printf("write file %s\n", path);
     fd = fopen(path, "w");
     if (fd != NULL)
         fclose(fd);
@@ -93,10 +94,10 @@ int main(int argc, char** argv) {
     } else 
       srand(seed);
       
-    fakeio("%s.before.%d.txt", seed);
+    fakeio("io/%s.before.%d.txt", seed);
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
-        printf ( "connection made\n" );
+        //printf ( "connection made\n" );
         if (insertmode) {
           if (seed == MYMAGICN) {
             doSQL ( conn, "DROP TABLE tbl1" );
@@ -109,12 +110,13 @@ int main(int argc, char** argv) {
           
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 50" );
-          doSQL ( conn, "SELECT * FROM tbl1 WHERE value < 50" );
+          doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
+          // doSQL ( conn, "SELECT * FROM tbl1" );
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
     
-    fakeio("%s.after.%d.txt", seed);
+    fakeio("io/%s.after.%d.txt", seed);
 
     PQfinish ( conn );
     return EXIT_SUCCESS;
