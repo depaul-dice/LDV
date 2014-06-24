@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "libpq-fe.h"
 #include "libpq-int.h"
@@ -815,7 +816,8 @@ sll prv_hash(char *str) { // djb2
 }
 
 void prv_storeConnection(PGconn* conn) {
-	fprintf(f_out_dblog, "prv_store_conn\t%s\t%s\n", conn->dbName, conn->pgoptions);
+	fprintf(f_out_dblog, "prv_store_conn\t%s\t\n", conn->dbName);
+	fprintf(f_out_dblog, "prv_store_user\t%s\n", conn->pguser);
 }
 
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
@@ -957,7 +959,6 @@ char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn) {
 	}
 	if (strlist[0] != '\0') { // not empty, need to remove the end "."
 		strlist[strlen(strlist) - 1] = '\0';
-		prv_accessProvP(strlist, tablename, conn);
 	}
 	return strlist;
 }
@@ -986,6 +987,71 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 }
 
 /*
+ * Get the statement type in smt_type
+ * and return the position after the initial command
+ */
+char *prv_getStart(char* str, char** smt, int size, int* smt_type);
+char *prv_getStart(char* str, char** smt, int size, int* smt_type) {
+  int i;
+  char *res;
+  for (i = 0; i < size; i++) {
+    res = strcasestr(str, smt[i]);
+    if (res != NULL) {
+      *smt_type = i;
+      return res + strlen(smt[i]) + 1; // skip one space as well
+    }
+  }
+  return NULL;
+}
+
+/*
+ * Parse the sql query (without initial command)
+ * and return fields, tablename, where, value, returning clauses
+ * as provided in var_arg
+ */
+void prv_parseRest(char* str, char** markers, int size, ...);
+void prv_parseRest(char* str, char** markers, int size, ...) {
+  va_list argp;
+  char *s, *next, *skip;
+  int i = 0, len, counter = 0;
+
+  va_start(argp, size);
+  s = va_arg(argp, char *);
+  counter++;
+
+  for (i=0; i<size; i++) {
+    next = strcasestr(str, markers[i]);
+    len = 0;
+    if (next != NULL) {
+      len = next - str - 1; // always has space before marker
+      if (s != NULL) {
+        strncpy(s, str, len);
+        s[len] = 0;
+      }
+      str = next + strlen(markers[i]); // NOT always has space after marker
+      s = va_arg(argp, char *);
+      counter++;
+    } else {
+      skip = va_arg(argp, char *);
+      if (skip != NULL)
+        skip[0] = 0;
+      counter++;
+    }
+  }
+  if (s != NULL) {
+    strcpy(s, str);
+    if (s[strlen(s)-1] == ';')
+      s[strlen(s)-1] = 0;
+  }
+  //~ while (counter < size) {
+    //~ s = va_arg(argp, char *);
+    //~ counter++;
+    //~ if (s != NULL)
+      //~ s[0] = 0;
+  //~ }
+}
+
+/*
  * SUPER naive way of adding provenance info to database
  * by duplicate the query and add postfix to table and values
  * Postfix: _prov_
@@ -994,153 +1060,220 @@ void prv_modifytable(PGconn* conn, char* tablename) {
  * 		if this is an insert, return query with provenance added
  * 		else return the original query
  */
-#define SELECT_STMT 1
-#define INSERT_STMT 2
-#define UPDATE_STMT 3
-#define DELETE_STMT 4
+#define SELECT_STMT 0
+#define INSERT_STMT 1
+#define UPDATE_STMT 2
+#define DELETE_STMT 3
+
+#define SMT_N 4
+#define SELECT_N 2
+#define INSERT_N 2
+#define UPDATE_N 3
+#define DELETE_N 3
+#define STR_MAX_LEN 1000
+
 char *prv_assembleQuery(const char *query, char* queryid, int version,
-		uint64_t timeus, int *type, char *tablename);
+		uint64_t timeus, int *type, char *table);
 char *prv_assembleQuery(const char *query, char* queryid, int version,
-		uint64_t timeus, int *type, char *tablename) {
+		uint64_t timeus, int *type, char *table) {
 	char s[1000], *result = NULL, pad[32], *token;
 	char state;
+
+	char *smt[SMT_N] = {"select", "insert into", "update", "delete from"};
+	char *select[SELECT_N] = {"from", "where"};
+	char *insert[INSERT_N] = {"values", "returning"};
+	char *update[UPDATE_N] = {"set", "from", "where"};
+	char *delete[DELETE_N] = {"using", "where", "returning"};
+	char field[STR_MAX_LEN], where[STR_MAX_LEN],
+	value[STR_MAX_LEN], returning[STR_MAX_LEN];
+	char *start = (char*) query;
 	
-	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
-		*type = INSERT_STMT;
-		result = malloc(1000);
-		state = 0; // 0 ..., 1 = INTO "table", 2..., 3 = "xxx)"
-		strcpy(s, query);
-		result[0] = '\0';
-		
-		token = strtok(s, " ");
-		while (token) {
-			if (state != 4) {
-				strcat(result, " ");
-				strcat(result, token);
-			}
-			if (state == 1) {
-				//strcat(result, "_prov_");
-				state = 2;
-				strcpy(tablename, token);
-			}
-			if (strcasecmp(token, "INTO")==0 && state == 0)
-				state = 1;
-			token = strtok(NULL, " ");
-			if (token == NULL) {
-				result[strlen(result)-1] = '\0'; // remove the last ")"
-				sprintf(pad, ", %s, %d, now());\n", queryid, sessionid);
-				strcat(result, pad);
-			}
+	start = prv_getStart(start, smt, SMT_N, type);
+	switch (*type) {
+	case SELECT_STMT:
+		result = malloc(STR_MAX_LEN);
+		prv_parseRest(start, select, SELECT_N, field, table, where);
+		sprintf(result, "SELECT PROVENANCE %s FROM %s"
+				" PROVENANCE(_prov_insertedby, _prov_rowid)",
+				field, table);
+		if (where[0] != 0) {
+			strcat(result, " WHERE ");
+			strcat(result, where);
+		}
+		break;
+	case INSERT_STMT:
+		result = malloc(STR_MAX_LEN);
+		prv_parseRest(start, insert, INSERT_N, table, value, returning);
+		value[strlen(value)-1] = '\0'; // remove the last ")"
+		sprintf(result, "INSERT INTO %s VALUES %s, %s, %d, now())",
+				table, value, queryid, sessionid);
+		if (returning[0] != 0) {
+			strcat(result, " RETURNING ");
+			strcat(result, returning);
 		}
 		prv_storeInsert(queryid, version, timeus, query);
-
-		return result;
-	}
-	
-	if (strncasecmp(query, "UPDATE ", 7)==0) { // update statement(s)
-		*type = UPDATE_STMT;
-		result = malloc(1000);
-		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
-		strcpy(s, query);
-		result[0] = '\0';
-
-		token = strtok(s, " ");
-		token = strtok(NULL, " "); // bypass the "SELECT " at start
-		strcpy(result, "SELECT PROVENANCE * FROM ");
-		state = 1;
-		while (token) {
-			if (state != 2 && state != 3) {
-				strcat(result, " ");
-				strcat(result, token);
-			}
-			if (state == 1) {
-				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
-				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
-				state = 2;
-				strcpy(tablename, token);
-			}
-			if (strcasecmp(token, "SET")==0 && state == 2)
-				state = 3;
-			if (strcasecmp(token, "FROM")==0 && state >= 3)
-				state = 4;
-			if (strcasecmp(token, "WHERE")==0 && state >= 3) {
-				strcat(result, " ");
-				strcat(result, token);
-				state = 4;
-			}
-			if (strcasecmp(token, "RETURNING")==0 && state >= 3)
-				state = 4;
-			token = strtok(NULL, " ");
+		break;
+	case UPDATE_STMT:
+		result = malloc(STR_MAX_LEN);
+		prv_parseRest(start, update, UPDATE_N, table, NULL, NULL, where);
+		sprintf(result, "SELECT PROVENANCE * FROM %s"
+				" PROVENANCE(_prov_insertedby, _prov_rowid)", table);
+		if (where[0] != 0) {
+			strcat(result, " WHERE ");
+			strcat(result, where);
 		}
-		//~ prv_store(queryid, version, timeus, query);
-		return result;
-	}
-
-	if (strncasecmp(query, "DELETE ", 7)==0) { // delete statement(s)
-			*type = DELETE_STMT;
-			result = malloc(1000);
-			state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
-			strcpy(s, query);
-			result[0] = '\0';
-
-			token = strtok(s, " ");
-			token = strtok(NULL, " "); // bypass the "SELECT " at start
-			strcpy(result, "SELECT PROVENANCE * FROM ");
-			state = 0;
-			while (token) {
-				if (state == 3) {
-					strcat(result, " ");
-					strcat(result, token);
-				}
-				if (state == 1) {
-					strcat(result, token);
-					// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
-					strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
-					state = 2;
-					strcpy(tablename, token);
-				}
-				if (strcasecmp(token, "FROM")==0 && state == 0)
-					state = 1;
-				if (strcasecmp(token, "WHERE")==0 && state == 2) {
-					strcat(result, " ");
-					strcat(result, token);
-					state = 3;
-				}
-				if (strcasecmp(token, "RETURNING")==0 && state == 3)
-					state = 4;
-				token = strtok(NULL, " ");
-			}
-			//~ prv_store(queryid, version, timeus, query);
-			return result;
+		break;
+	case DELETE_STMT:
+		result = malloc(STR_MAX_LEN);
+		prv_parseRest(start, delete, DELETE_N, table, NULL, where, NULL);
+		sprintf(result, "SELECT PROVENANCE * FROM %s"
+				" PROVENANCE(_prov_insertedby, _prov_rowid)", table);
+		if (where[0] != 0) {
+			strcat(result, " WHERE ");
+			strcat(result, where);
 		}
-
-	if (strncasecmp(query, "SELECT ", 7)==0) { // select statement(s)
-		*type = SELECT_STMT;
-		result = malloc(1000);
-		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
-		strcpy(s, query);
-		result[0] = '\0';
-		
-		token = strtok(s, " ");
-		token = strtok(NULL, " "); // bypass the "SELECT " at start
-		strcpy(result, "SELECT PROVENANCE");
-		while (token) {
-			strcat(result, " ");
-			strcat(result, token);
-			if (state == 1) {
-				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
-				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
-				state = 2;
-				strcpy(tablename, token);
-			}
-			if (strcasecmp(token, "FROM")==0 && state == 0)
-				state = 1;
-			token = strtok(NULL, " ");
-		}
-		//~ prv_store(queryid, version, timeus, query);
-		return result;
+		break;
+	default:
+		break;
 	}
-	
+	return result;
+
+//	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
+//		*type = INSERT_STMT;
+//		result = malloc(1000);
+//		state = 0; // 0 ..., 1 = INTO "table", 2..., 3 = "xxx)"
+//		strcpy(s, query);
+//		result[0] = '\0';
+//
+//		token = strtok(s, " ");
+//		while (token) {
+//			if (state != 4) {
+//				strcat(result, " ");
+//				strcat(result, token);
+//			}
+//			if (state == 1) {
+//				//strcat(result, "_prov_");
+//				state = 2;
+//				strcpy(table, token);
+//			}
+//			if (strcasecmp(token, "INTO")==0 && state == 0)
+//				state = 1;
+//			token = strtok(NULL, " ");
+//			if (token == NULL) {
+//				result[strlen(result)-1] = '\0'; // remove the last ")"
+//				sprintf(pad, ", %s, %d, now());\n", queryid, sessionid);
+//				strcat(result, pad);
+//			}
+//		}
+//		prv_storeInsert(queryid, version, timeus, query);
+//
+//		return result;
+//	}
+//
+//	if (strncasecmp(query, "UPDATE ", 7)==0) { // update statement(s)
+//		*type = UPDATE_STMT;
+//		result = malloc(1000);
+//		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+//		strcpy(s, query);
+//		result[0] = '\0';
+//
+//		token = strtok(s, " ");
+//		token = strtok(NULL, " "); // bypass the "SELECT " at start
+//		strcpy(result, "SELECT PROVENANCE * FROM ");
+//		state = 1;
+//		while (token) {
+//			if (state != 2 && state != 3) {
+//				strcat(result, " ");
+//				strcat(result, token);
+//			}
+//			if (state == 1) {
+//				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+//				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
+//				state = 2;
+//				strcpy(table, token);
+//			}
+//			if (strcasecmp(token, "SET")==0 && state == 2)
+//				state = 3;
+//			if (strcasecmp(token, "FROM")==0 && state >= 3)
+//				state = 4;
+//			if (strcasecmp(token, "WHERE")==0 && state >= 3) {
+//				strcat(result, " ");
+//				strcat(result, token);
+//				state = 4;
+//			}
+//			if (strcasecmp(token, "RETURNING")==0 && state >= 3)
+//				state = 4;
+//			token = strtok(NULL, " ");
+//		}
+//		//~ prv_store(queryid, version, timeus, query);
+//		return result;
+//	}
+//
+//	if (strncasecmp(query, "DELETE ", 7)==0) { // delete statement(s)
+//			*type = DELETE_STMT;
+//			result = malloc(1000);
+//			state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+//			strcpy(s, query);
+//			result[0] = '\0';
+//
+//			token = strtok(s, " ");
+//			token = strtok(NULL, " "); // bypass the "SELECT " at start
+//			strcpy(result, "SELECT PROVENANCE * FROM ");
+//			state = 0;
+//			while (token) {
+//				if (state == 3) {
+//					strcat(result, " ");
+//					strcat(result, token);
+//				}
+//				if (state == 1) {
+//					strcat(result, token);
+//					// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+//					strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
+//					state = 2;
+//					strcpy(table, token);
+//				}
+//				if (strcasecmp(token, "FROM")==0 && state == 0)
+//					state = 1;
+//				if (strcasecmp(token, "WHERE")==0 && state == 2) {
+//					strcat(result, " ");
+//					strcat(result, token);
+//					state = 3;
+//				}
+//				if (strcasecmp(token, "RETURNING")==0 && state == 3)
+//					state = 4;
+//				token = strtok(NULL, " ");
+//			}
+//			//~ prv_store(queryid, version, timeus, query);
+//			return result;
+//		}
+//
+//	if (strncasecmp(query, "SELECT ", 7)==0) { // select statement(s)
+//		*type = SELECT_STMT;
+//		result = malloc(1000);
+//		state = 0; // 0 ..., 1 = FROM "table", 2..., 3 = "xxx)"
+//		strcpy(s, query);
+//		result[0] = '\0';
+//
+//		token = strtok(s, " ");
+//		token = strtok(NULL, " "); // bypass the "SELECT " at start
+//		strcpy(result, "SELECT PROVENANCE");
+//		while (token) {
+//			strcat(result, " ");
+//			strcat(result, token);
+//			if (state == 1) {
+//				// strcat(result, " PROVENANCE(_prov_p, _prov_insertedby, _prov_v, _prov_rowid)");
+//				strcat(result, " PROVENANCE(_prov_insertedby, _prov_rowid)");
+//				state = 2;
+//				strcpy(table, token);
+//			}
+//			if (strcasecmp(token, "FROM")==0 && state == 0)
+//				state = 1;
+//			token = strtok(NULL, " ");
+//		}
+//		//~ prv_store(queryid, version, timeus, query);
+//		return result;
+//	}
+//
 //	if (strncasecmp(query, "CREATE TABLE ", 13)==0) { // create statement(s)
 //		return NULL; // no need
 //		result = malloc(1000);
@@ -1217,6 +1350,7 @@ char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 	sprintf(queryid, "%lld", prv_hash(astr));
 
 	res = prv_assembleQuery(query, queryid, version, *timeus, type, tablename);
+
 	return res;
 }
 /*
@@ -1858,7 +1992,7 @@ PQexec(PGconn *conn, const char *query)
 	char queryid[40];
 	uint64_t timeus;
 	PGresult *result;
-	int type;
+	int type = -1;
 	char tablename[256];
 	char *prov_query;
 
@@ -1870,7 +2004,7 @@ PQexec(PGconn *conn, const char *query)
 
 	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);
 	if (prov_query != NULL) {
-		//printf("db: %s %s\n", tablename, prov_query);
+		logdb("db: %d %s %s\n", type, tablename, prov_query);
 		if (type == INSERT_STMT) {
 			prv_modifytable(conn, tablename);
 			prv_updateProvP(queryid);
@@ -1885,8 +2019,12 @@ PQexec(PGconn *conn, const char *query)
 				//~ prv_storeSelect(queryid, version, timeus, query);
 				char *insertIds = prv_getRowIds(result, tablename, conn);
 				prv_storeSelect(queryid, insertIds, timeus, query);
-				if (insertIds != NULL)
+				if (insertIds != NULL) {
+					prv_accessProvP(insertIds, tablename, conn);
 					free(insertIds);
+				}
+			} else {
+				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
 			}
 			PQclear ( result );
 			free(prov_query);
