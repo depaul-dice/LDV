@@ -111,6 +111,7 @@ int main(int argc, char** argv) {
           doSQL ( conn, "DELETE FROM tbl1 WHERE value = 3;");
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 2" );
+          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
           // doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
           // doSQL ( conn, "SELECT * FROM tbl1" );
           // doSQL ( conn, "select sum(tbl1.value) from tbl2 join tbl1 on tbl1.id=tbl2.id where tbl2.value < 50;");

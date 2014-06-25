@@ -673,12 +673,18 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  */
 
 #define DEBUG 1
+#define STR_LEN 50
+#define STR_LONG_LEN 10240
+
 #define logdb(fmt, ...) \
     do { if (DEBUG) fprintf(stderr, "DEBUG: " fmt, __VA_ARGS__); } while (0)
 
 typedef long long sll; // signed long long
-#define STR_LEN 50
-#define STR_LONG_LEN 10240
+typedef struct idsnode {
+	char* tablename;
+	char* idlist;
+	struct idsnode *next;
+} ids4table_t;
 
 void prv_storeConnection(PGconn* conn);
 PGresult *PQexecSingle(PGconn *conn, const char *query);
@@ -689,17 +695,35 @@ static int sessionid = 0;
 static char DB_IN_REPLAY = 0;
 static FILE *f_out_dblog, *f_in_dblog;
 
+ids4table_t *prv_addId4table(ids4table_t *head, char* tablename, char* idlist);
+ids4table_t *prv_addId4table(ids4table_t *head, char* tablename, char* idlist) {
+	ids4table_t *ptr = malloc(sizeof(ids4table_t));
+	ptr->tablename = tablename;
+	ptr->idlist = idlist;
+	ptr->next = head;
+	return ptr;
+}
+
+void prv_deleteId4table(ids4table_t *head);
+void prv_deleteId4table(ids4table_t *head) {
+	ids4table_t *next;
+	while (head != NULL) {
+		next = head->next;
+		free(head->tablename);
+		free(head->idlist);
+		free(head);
+		head = next;
+	}
+}
+
 char* prv_get_stored_dbname(FILE *f_in);
 char* prv_get_stored_dbname(FILE *f_in) {
 	char line[STR_LONG_LEN];
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
 		logdb("%s\n", line);
-		if (strstr(line, "prv_store_conn") == line) {
-			char *start = line + strlen("prv_store_conn") + 1;
-			char *end = strstr(start, "\t");
-			if (end != NULL) {
-				return strndup(start, end - start);
-			}
+		if (strstr(line, "prv_store_dbname") == line) {
+			char *start = line + strlen("prv_store_dbname") + 1;
+			return strndup(start, strlen(start) - 1); // remove \n at end
 		}
 	}
 	return NULL;
@@ -816,7 +840,7 @@ sll prv_hash(char *str) { // djb2
 }
 
 void prv_storeConnection(PGconn* conn) {
-	fprintf(f_out_dblog, "prv_store_conn\t%s\t\n", conn->dbName);
+	fprintf(f_out_dblog, "prv_store_dbname\t%s\n", conn->dbName);
 	fprintf(f_out_dblog, "prv_store_user\t%s\n", conn->pguser);
 }
 
@@ -944,8 +968,8 @@ char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn) {
 	
 	strlist[0] = '\0'; // init empty string
 	
-	rowid_n = PQfnumber(result, "prov___prov__rowid");
-	sessionid_n = PQfnumber(result, "prov___prov__insertedby");
+	rowid_n = PQfnumber(result, "prov_public_tbl1___prov__rowid");
+	sessionid_n = PQfnumber(result, "prov_public_tbl1___prov__insertedby");
 
 	for ( r = 0; r < nrows; r++ ) {
 		prov_rowid = PQgetvalue ( result, r, rowid_n );
@@ -1076,9 +1100,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *table);
 char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *table) {
-	char s[1000], *result = NULL, pad[32], *token;
-	char state;
 
+	char *result;
 	char *smt[SMT_N] = {"select", "insert into", "update", "delete from"};
 	char *select[SELECT_N] = {"from", "where"};
 	char *insert[INSERT_N] = {"values", "returning"};
@@ -1093,8 +1116,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 	case SELECT_STMT:
 		result = malloc(STR_MAX_LEN);
 		prv_parseRest(start, select, SELECT_N, field, table, where);
-		sprintf(result, "SELECT PROVENANCE %s FROM %s"
-				" PROVENANCE(_prov_insertedby, _prov_rowid)",
+		sprintf(result, "SELECT PROVENANCE %s FROM %s",
 				field, table);
 		if (where[0] != 0) {
 			strcat(result, " WHERE ");
@@ -1138,6 +1160,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 	}
 	return result;
 
+//	char s[1000], *result = NULL, pad[32], *token;
+//	char state;
 //	if (strncasecmp(query, "INSERT ", 7)==0) { // insert statement(s)
 //		*type = INSERT_STMT;
 //		result = malloc(1000);
