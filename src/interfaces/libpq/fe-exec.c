@@ -683,6 +683,7 @@ typedef long long sll; // signed long long
 typedef struct idsnode {
 	char* tablename;
 	char* idlist;
+	int col;
 	struct idsnode *next;
 } ids4table_t;
 
@@ -695,11 +696,14 @@ static int sessionid = 0;
 static char DB_IN_REPLAY = 0;
 static FILE *f_out_dblog, *f_in_dblog;
 
-ids4table_t *prv_addId4table(ids4table_t *head, char* tablename, char* idlist);
-ids4table_t *prv_addId4table(ids4table_t *head, char* tablename, char* idlist) {
+ids4table_t *prv_addId4table(ids4table_t *head,
+		char* tablename, char* idlist, int col);
+ids4table_t *prv_addId4table(ids4table_t *head,
+		char* tablename, char* idlist, int col) {
 	ids4table_t *ptr = malloc(sizeof(ids4table_t));
 	ptr->tablename = tablename;
 	ptr->idlist = idlist;
+	ptr->col = col;
 	ptr->next = head;
 	return ptr;
 }
@@ -895,96 +899,113 @@ void prv_store_table(char* tablename, PGconn* conn) {
 	fprintf(f_out_dblog, "prv_store_table\t%s\n", sqltable);
 }
 
-void prv_store_row(char *rowids, char* tablename, PGconn* conn);
-void prv_store_row(char *rowids, char* tablename, PGconn* conn) {
+void prv_store_row(ids4table_t *head, PGconn* conn);
+void prv_store_row(ids4table_t *head, PGconn* conn) {
 	char sql[STR_LONG_LEN], fields[STR_LONG_LEN], values[STR_LONG_LEN];
+	char *tablename, *rowids;
 	PGresult *result;
 	int r, n, nrows, nfields;
+	ids4table_t *it;
 
-	prv_store_table(tablename, conn);
+	for (it = head; it != NULL; it = it->next) {
+		tablename = it->tablename;
+		rowids = it->idlist;
 
-	sprintf(sql,
-			//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
-			"UPDATE %s SET _prov_insertedby = %d "
-			"WHERE _prov_rowid LIKE any(string_to_array('%s',',')) RETURNING *;",
-			tablename, sessionid, rowids);
-	result = PQexecSingle(conn, sql);
+		prv_store_table(tablename, conn);
 
-	nrows = PQntuples ( result );
+		sprintf(sql,
+				//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
+				"UPDATE %s SET _prov_insertedby = %d "
+				"WHERE _prov_insertedby = 0 "
+				"AND _prov_rowid LIKE any(string_to_array('%s',',')) "
+				"RETURNING *;",
+				tablename, sessionid, rowids);
+		result = PQexecSingle(conn, sql);
 
-	// prepare field name list
-	fields[0] = 0;
-	strcat(fields, "(");
-	nfields = PQnfields ( result );
-	for ( n = 0; n < nfields; n++ ) {
-		strcat(fields, PQfname ( result, n ));
-		if (n < nfields - 1) {
-			strcat(fields, ", ");
-		} else
-			strcat(fields, ")");
-	}
+		nrows = PQntuples ( result );
 
-	for ( r = 0; r < nrows; r++ ) {
-		values[0] = 0;
-		strcat(values, "('");
+		// prepare field name list
+		fields[0] = 0;
+		strcat(fields, "(");
+		nfields = PQnfields ( result );
 		for ( n = 0; n < nfields; n++ ) {
-			strcat(values, PQgetvalue ( result, r, n ));
+			strcat(fields, PQfname ( result, n ));
 			if (n < nfields - 1) {
-				strcat(values, "', '");
+				strcat(fields, ", ");
 			} else
-				strcat(values, "')");
+				strcat(fields, ")");
 		}
-		fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
-				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
-				tablename);
-		fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
+
+		for ( r = 0; r < nrows; r++ ) {
+			values[0] = 0;
+			strcat(values, "('");
+			for ( n = 0; n < nfields; n++ ) {
+				strcat(values, PQgetvalue ( result, r, n ));
+				if (n < nfields - 1) {
+					strcat(values, "', '");
+				} else
+					strcat(values, "')");
+			}
+			fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
+					PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
+					tablename);
+			fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
+		}
+
+		PQclear(result);
 	}
-
-	PQclear(result);
 }
 
-void prv_updateProvP(char* p);
-void prv_updateProvP(char* p) {
-	// TODO
-}
-
-void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn);
-void prv_accessProvP(char* rowidlist, char* tablename, PGconn* conn) {
-		prv_store_row(rowidlist, tablename, conn);
-		prv_updateProvP(rowidlist);
-}
-
-char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn);
-char* prv_getRowIds(PGresult *result, char* tablename, PGconn* conn) {
-	int r, rowid_n, sessionid_n, prov_sessionid = 0;
+ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn);
+ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
+	int r, c;
 	int nrows = PQntuples ( result );
-	char selectid[40]; // 32 UUID + extra chars per insertid
-	char *strlist, *prov_rowid;
+	int nfields = PQnfields ( result );
+	char *idlist, *tablename, *prov_rowid, *field, *start, *end;
+	ids4table_t *head = NULL, *it;
 	
 	if (nrows == 0) return NULL;
-	
-	strlist = malloc(nrows * sizeof(selectid));
-	if (strlist == NULL) return NULL; // or malloc exception?
-	
-	strlist[0] = '\0'; // init empty string
-	
-	rowid_n = PQfnumber(result, "prov_public_tbl1___prov__rowid");
-	sessionid_n = PQfnumber(result, "prov_public_tbl1___prov__insertedby");
 
+	// initialize the ids4table_t
+	for (c = 0; c < nfields; c++) {
+		field = PQfname(result, c);
+		end = strstr(field, "___prov__rowid");
+		if (end != NULL) {
+			start = strstr(field, "_") + 1;
+			start = strstr(start, "_") + 1; // skip prov_schemaname_
+		} else
+			continue;
+		tablename = strndup(start, end - start);
+		logdb("--- %s\n", tablename);
+		idlist = malloc(nrows * 32); // size of md5 is 32
+		idlist[0] = 0;
+		if (idlist == NULL) {
+			free(tablename);
+			prv_deleteId4table(head);
+			return NULL;
+		} else
+			head = prv_addId4table(head, tablename, idlist, c);
+	}
+	
 	for ( r = 0; r < nrows; r++ ) {
-		prov_rowid = PQgetvalue ( result, r, rowid_n );
-		prov_sessionid = atoi(PQgetvalue( result, r, sessionid_n));
-		if (strlen(prov_rowid) > 0 && prov_sessionid != sessionid) {
-			sprintf (selectid, "%s",
-					 PQgetvalue ( result, r, rowid_n ));
-			strcat(strlist, selectid);
-			strcat(strlist, ",");
+		it = head;
+		while (it != NULL) {
+			prov_rowid = PQgetvalue ( result, r, it->col );
+			if (strlen(prov_rowid) > 0) {
+				strcat(it->idlist, prov_rowid);
+				strcat(it->idlist, ",");
+			}
+			it = it->next;
 		}
 	}
-	if (strlist[0] != '\0') { // not empty, need to remove the end "."
-		strlist[strlen(strlist) - 1] = '\0';
+
+	for (it = head; it != NULL; it = it->next) {
+		if (it->idlist[0] != '\0') { // not empty, need to remove the end "."
+			it->idlist[strlen(idlist) - 1] = '\0';
+		}
 	}
-	return strlist;
+
+	return head;
 }
 
 void prv_modifytable(PGconn* conn, char* tablename);
@@ -1138,8 +1159,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 	case UPDATE_STMT:
 		result = malloc(STR_MAX_LEN);
 		prv_parseRest(start, update, UPDATE_N, table, NULL, NULL, where);
-		sprintf(result, "SELECT PROVENANCE * FROM %s"
-				" PROVENANCE(_prov_insertedby, _prov_rowid)", table);
+		sprintf(result, "SELECT PROVENANCE * FROM %s", table);
 		if (where[0] != 0) {
 			strcat(result, " WHERE ");
 			strcat(result, where);
@@ -1148,8 +1168,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 	case DELETE_STMT:
 		result = malloc(STR_MAX_LEN);
 		prv_parseRest(start, delete, DELETE_N, table, NULL, where, NULL);
-		sprintf(result, "SELECT PROVENANCE * FROM %s"
-				" PROVENANCE(_prov_insertedby, _prov_rowid)", table);
+		sprintf(result, "SELECT PROVENANCE * FROM %s", table);
 		if (where[0] != 0) {
 			strcat(result, " WHERE ");
 			strcat(result, where);
@@ -2031,7 +2050,6 @@ PQexec(PGconn *conn, const char *query)
 		logdb("db: %d %s %s\n", type, tablename, prov_query);
 		if (type == INSERT_STMT) {
 			prv_modifytable(conn, tablename);
-			prv_updateProvP(queryid);
 			result = PQexecSingle(conn, prov_query);
 			free(prov_query);
 			return result;
@@ -2041,11 +2059,11 @@ PQexec(PGconn *conn, const char *query)
 			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
-				char *insertIds = prv_getRowIds(result, tablename, conn);
-				prv_storeSelect(queryid, insertIds, timeus, query);
-				if (insertIds != NULL) {
-					prv_accessProvP(insertIds, tablename, conn);
-					free(insertIds);
+				ids4table_t *head = prv_getRowIds(result, conn);
+				// prv_storeSelect(queryid, head, timeus, query);
+				if (head != NULL) {
+					prv_store_row(head, conn);
+					prv_deleteId4table(head);
 				}
 			} else {
 				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
