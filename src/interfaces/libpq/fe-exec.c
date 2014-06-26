@@ -677,7 +677,7 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
 #define STR_LONG_LEN 10240
 
 #define logdb(fmt, ...) \
-    do { if (DEBUG) fprintf(stderr, "DEBUG: " fmt, __VA_ARGS__); } while (0)
+    do { if (DEBUG) fprintf(stderr, "debug: " fmt, __VA_ARGS__); } while (0)
 
 typedef long long sll; // signed long long
 typedef struct idsnode {
@@ -1011,8 +1011,9 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 void prv_modifytable(PGconn* conn, char* tablename);
 void prv_modifytable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
-	char sql[1000];
+	char sql[STR_LONG_LEN];
 	PGresult *result;
+	logdb("mod table: %s\n", tablename);
 	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
 	sprintf(sql, "ALTER TABLE %s "
 			"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
@@ -1023,12 +1024,31 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 			tablename);
 	result = PQexecSingle(conn, sql);
 	PQclear(result);
+}
 
-//	sprintf(sql, "UPDATE %s SET (_prov_p, _prov_v, _prov_rowid) = "
-//			"('0.' || md5(ctid::text || now()::text), 1, md5(ctid::text || now()::text)) "
-//			"WHERE _prov_p IS NULL;", tablename);
-//	result = PQexecSingle(conn, sql);
-//	PQclear(result);
+void prv_modifyTableList(PGconn* conn, char* tablelist);
+void prv_modifyTableList(PGconn* conn, char* tablelist) {
+	char *space, *comma, tablename[STR_LEN];
+
+	do {
+		while (*tablelist == ' ') tablelist++;
+		comma = strstr(tablelist, ",");
+		space = strstr(tablelist, " ");
+		if (comma == NULL) {
+			if (space == NULL)
+				space = tablelist + strlen(tablelist);
+		} else {
+			if (space == NULL || space > comma)
+				space = comma;
+		}
+		strncpy(tablename, tablelist, space - tablelist);
+		tablename[space - tablelist] = 0;
+		prv_modifytable(conn, tablename);
+		if (comma == NULL)
+			break;
+		else
+			tablelist = comma + 1;
+	} while (true);
 }
 
 /*
@@ -2055,7 +2075,7 @@ PQexec(PGconn *conn, const char *query)
 			return result;
 		}
 		if (type == SELECT_STMT || type == UPDATE_STMT || type == DELETE_STMT) {
-			prv_modifytable(conn, tablename);
+			prv_modifyTableList(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
 			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
