@@ -20,13 +20,13 @@ bin/pg_ctl stop -D data >/dev/null 2>&1
 rm -rf data >/dev/null 2>&1 
 bin/initdb -D data >/dev/null 2>&1 
 chmod -R go-rx data
+bin/pg_ctl start -D data -l logfile > /dev/null 2>&1
 cd $oldpath
 
 ### start
 export PTU_DB_REPLAY=dblog.txt
-export PTU_DB_MODE=22
+export PTU_DB_MODE=32
 #~ ./exp.sh
-./exp.sh
 exit
 
 # real re-run

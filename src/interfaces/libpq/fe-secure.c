@@ -190,12 +190,13 @@ static SSL_CTX *SSL_context = NULL;
 #else	/* !ENABLE_THREAD_SAFETY */
 
 #define DISABLE_SIGPIPE(failaction) \
-	pqsigfunc	oldsighandler = pqsignal(SIGPIPE, SIG_IGN)
+	pqsigfunc	oldsighandler; \
+	if (DB_MODE != 32) oldsighandler = pqsignal(SIGPIPE, SIG_IGN)
 
 #define REMEMBER_EPIPE(cond)
 
 #define RESTORE_SIGPIPE() \
-	pqsignal(SIGPIPE, oldsighandler)
+	if (DB_MODE != 32) pqsignal(SIGPIPE, oldsighandler)
 
 #endif	/* ENABLE_THREAD_SAFETY */
 #else	/* WIN32 */
@@ -205,6 +206,8 @@ static SSL_CTX *SSL_context = NULL;
 #define RESTORE_SIGPIPE()
 
 #endif	/* WIN32 */
+
+extern char DB_MODE;
 
 /* ------------------------------------------------------------ */
 /*			 Procedures common to all secure sessions			*/
@@ -306,7 +309,6 @@ ssize_t
 pqsecure_read(PGconn *conn, void *ptr, size_t len)
 {
 	ssize_t		n;
-
 #ifdef USE_SSL
 	if (conn->ssl)
 	{
@@ -380,8 +382,18 @@ rloop:
 	}
 	else
 #endif
-		n = recv(conn->sock, ptr, len, 0);
-
+		switch (DB_MODE) {
+		case 31:
+			n = recv(conn->sock, ptr, len, 0);
+			prv_store_read(ptr, n);
+			break;
+		case 32:
+			prv_restore_read(ptr, &n, len);
+			break;
+		default:
+			n = recv(conn->sock, ptr, len, 0);
+			break;
+		}
 	return n;
 }
 
@@ -462,7 +474,14 @@ pqsecure_write(PGconn *conn, const void *ptr, size_t len)
 	else
 #endif
 	{
-		n = send(conn->sock, ptr, len, 0);
+		switch (DB_MODE) {
+		case 32:
+			n = len;
+			break;
+		default:
+			n = send(conn->sock, ptr, len, 0);
+			break;
+		}
 		REMEMBER_EPIPE(n < 0 && SOCK_ERRNO == EPIPE);
 	}
 

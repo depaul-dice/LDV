@@ -24,7 +24,7 @@ cd $oldpath
 
 ### start
 export PTU_DBSESSION_ID=1001
-export PTU_DB_MODE=21
+export PTU_DB_MODE=31
 unset PTU_DB_REPLAY
 rm *.dblog
 #~ ./exp.sh
@@ -38,8 +38,8 @@ $PERM/bin/initdb -D data >/dev/null 2>&1
 cd $oldpath
 
 ### post-process db for indirect (spawn) links
-cat *.dblog > dblog.txt
-ln dblog.txt cde-package/cde-root/
+#~ cat *.dblog > dblog.txt
+#~ ln dblog.txt cde-package/cde-root/
 #~ cat 100.log | python insertdb.py
 #~ cat 99.log | python insertdb.py
 #~ cat 0.log | python insertdb.py

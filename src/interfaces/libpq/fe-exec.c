@@ -672,12 +672,8 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  * ============ QUAN's hack ===============
  */
 
-#define DEBUG 1
 #define STR_LEN 50
 #define STR_LONG_LEN 10240
-
-#define logdb(fmt, ...) \
-    do { if (DEBUG) fprintf(stderr, "debug: " fmt, __VA_ARGS__); } while (0)
 
 typedef long long sll; // signed long long
 typedef struct idsnode {
@@ -693,8 +689,17 @@ sll prv_hash(char *str);
 
 static char is_init = 0;
 static int sessionid = 0;
-static char DB_IN_REPLAY = 0;
-static FILE *f_out_dblog, *f_in_dblog;
+FILE *f_out_dblog = NULL, *f_in_dblog = NULL;
+
+/*
+ * DB_MODE: 1x, 2x or 3x with 1st, 2nd or 3rd case of paper
+ * x1 = capture, x2 = rerun
+ * e.g: DB_MODE=21 to capture main case of the paper
+ *              22 to rerun it
+ */
+char DB_MODE = 21;
+sll pkg_counter = 0;
+pid_t pid;
 
 ids4table_t *prv_addId4table(ids4table_t *head,
 		char* tablename, char* idlist, int col);
@@ -741,7 +746,6 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 	int restatus, iamtheone = 0;
 	int len_st_table = strlen("prv_store_table");
 	int len_st_row = strlen("prv_store_row");
-	long pid = getpid();
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
 //		logdb("get %s\n", line);
 		if (strncmp(line, "prv_store_table", len_st_table) == 0) {
@@ -772,9 +776,15 @@ void prv_restoredb(char *conninfo) {
 		new_conninfo[STR_LEN], sql[STR_LEN];
 	char *dbreplay = getenv("PTU_DB_REPLAY");
 	PGconn *conn;
+
+	if (DB_MODE == 32) {
+		f_in_dblog = fopen(dbreplay, "r");
+		return;
+	}
+
+	if (DB_MODE != 22) return;
 	if (dbreplay == NULL) return;
 
-	DB_IN_REPLAY = 1;
 	start = strstr(conninfo, "dbname=");
 	if (start != NULL) {
 
@@ -821,23 +831,9 @@ void prv_restoredb(char *conninfo) {
 	}
 }
 
-void prv_init(PGconn* conn) {
-	char *session = NULL;
-	char filename[20];
-	if (DB_IN_REPLAY) return;
-	if (is_init) return;
-	is_init = 1;
-	session = getenv("PTU_DBSESSION_ID");
-	if (session != NULL) sessionid = atoi(session);
-	sprintf(filename, "%d.%d.dblog", sessionid, getpid());
-	f_out_dblog = fopen(filename, "w");
-	fprintf(f_out_dblog, "prv_init\t%s\n", session);
-	prv_storeConnection(conn);
-}
-
 void prv_finish(PGconn* conn) {
-	if (DB_IN_REPLAY) return;
-	fclose(f_out_dblog);
+	if (DB_MODE == 21 || DB_MODE == 31)
+		fclose(f_out_dblog);
 }
 
 sll prv_hash(char *str) { // djb2
@@ -850,8 +846,10 @@ sll prv_hash(char *str) { // djb2
 }
 
 void prv_storeConnection(PGconn* conn) {
-	fprintf(f_out_dblog, "prv_store_dbname\t%s\n", conn->dbName);
-	fprintf(f_out_dblog, "prv_store_user\t%s\n", conn->pguser);
+	if (DB_MODE == 21) {
+		fprintf(f_out_dblog, "prv_store_dbname\t%s\n", conn->dbName);
+		fprintf(f_out_dblog, "prv_store_user\t%s\n", conn->pguser);
+	}
 }
 
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
@@ -1422,6 +1420,76 @@ char *prv_createQuery(const char *query, char *queryid, uint64_t *timeus,
 
 	return res;
 }
+
+void prv_init_restore(char* conninfo) {
+	if (DB_MODE == 22 || DB_MODE == 32)
+		prv_restoredb(conninfo);
+}
+
+void prv_init_pkg_capture() {
+	char *session = NULL, *db_mode;
+	char filename[20];
+	if (is_init) return;
+	is_init = 1;
+
+	// capture
+	db_mode = getenv("PTU_DB_MODE");
+	if (db_mode != NULL) DB_MODE = atoi(db_mode);
+	logdb("dbmode: %d\n", DB_MODE);
+
+	// session
+	pid = getpid();
+	if (DB_MODE == 21 || DB_MODE == 31) {
+		session = getenv("PTU_DBSESSION_ID");
+		if (session != NULL) sessionid = atoi(session);
+		sprintf(filename, "%d.%d.dblog", sessionid, pid);
+		f_out_dblog = fopen(filename, "w");
+		fprintf(f_out_dblog, "prv_init\t%s\n", session);
+	}
+}
+
+inline unsigned char getHex(unsigned char ch);
+inline unsigned char getHex(unsigned char ch) {
+	return (ch > 9) ? (ch + 'a' - 10) : (ch + '0');
+}
+void prv_store_read(unsigned char *ptr, ssize_t n) {
+	int i;
+	unsigned char ch;
+	fprintf(f_out_dblog, "prv_store_read\t%lld\t%ld\t", pkg_counter++, n);
+	for (i = 0; i<n; i++) {
+		ch = ptr[i];
+		fprintf(f_out_dblog, "%c%c", getHex(ch / 16), getHex(ch % 16));
+	}
+	fprintf(f_out_dblog, "\n");
+}
+
+inline unsigned char getChar(char ch);
+inline unsigned char getChar(char ch) {
+	return (ch > '9') ? (ch - 'a' + 10) : (ch - '0');
+}
+
+void prv_restore_read(unsigned char *ptr, ssize_t *n, size_t len) {
+	char *line, *start;
+	int len_st_read = strlen("prv_store_read");
+	int i = 0;
+//	logdb("prv_restore_read %d\n", len);
+	line = malloc(2*len + 100); // hex format need double memory
+	while (fgets(line, len, f_in_dblog) != NULL) {
+		if (strncmp(line, "prv_store_read", len_st_read) == 0) {
+			start = line;
+			start = strchr(start, '\t') + 1;
+			start = strchr(start, '\t') + 1;
+			start = strchr(start, '\t') + 1;
+			while (*start != '\n') {
+				ptr[i] = getChar(*start) << 4 | getChar(*(start+1));
+				i++;
+				start+=2;
+			}
+			*n = i;
+		}
+	}
+}
+
 /*
  * ============ QUAN's hack done ===============
  */
@@ -2065,11 +2133,8 @@ PQexec(PGconn *conn, const char *query)
 	char tablename[256];
 	char *prov_query;
 
-	if (DB_IN_REPLAY)
+	if (DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
 		return PQexecSingle(conn, query);
-
-	if (!is_init)
-		prv_init(conn);
 
 	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);
 	if (prov_query != NULL) {
