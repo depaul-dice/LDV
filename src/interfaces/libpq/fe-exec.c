@@ -723,9 +723,10 @@ void prv_deleteId4table(ids4table_t *head) {
 char* prv_get_stored_dbname(FILE *f_in);
 char* prv_get_stored_dbname(FILE *f_in) {
 	char line[STR_LONG_LEN];
+	int len = strlen("prv_store_dbname");
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
-		logdb("%s\n", line);
-		if (strstr(line, "prv_store_dbname") == line) {
+//		logdb("%s\n", line);
+		if (strncmp(line, "prv_store_dbname", len) == 0) {
 			char *start = line + strlen("prv_store_dbname") + 1;
 			return strndup(start, strlen(start) - 1); // remove \n at end
 		}
@@ -738,12 +739,15 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 	char line[STR_LONG_LEN], *start;
 	PGresult *result;
 	int restatus, iamtheone = 0;
+	int len_st_table = strlen("prv_store_table");
+	int len_st_row = strlen("prv_store_row");
+	long pid = getpid();
 	while (fgets(line, STR_LONG_LEN, f_in) != NULL) {
-		logdb("get %s\n", line);
-		if (strstr(line, "prv_store_table") == line) {
+//		logdb("get %s\n", line);
+		if (strncmp(line, "prv_store_table", len_st_table) == 0) {
 			start = line;
-			start = strstr(start, "\t") + 1;
-			logdb("restored sql: %s", start);
+			start = strchr(start, '\t') + 1;
+			logdb("%d restored sql: %s", pid, start);
 			result = PQexecSingle(conn, start);
 			restatus = PQresultStatus(result);
 			if (!iamtheone && restatus != PGRES_COMMAND_OK) {
@@ -752,12 +756,12 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 			} else {
 				iamtheone = 1;
 			}
-		} else if (strstr(line, "prv_store_row") == line) {
+		} else if (strncmp(line, "prv_store_row", len_st_row) == 0) {
 			start = line;
-			start = strstr(start, "\t") + 1;
-			start = strstr(start, "\t") + 1;
-			start = strstr(start, "\t") + 1;
-			logdb("restored sql: %s", start);
+			start = strchr(start, '\t') + 1;
+			start = strchr(start, '\t') + 1;
+			start = strchr(start, '\t') + 1;
+			logdb("%d restored sql: %s", pid, start);
 			PQexecSingle(conn, start);
 		}
 	}
@@ -779,12 +783,14 @@ void prv_restoredb(char *conninfo) {
 		// create new conn_info and identify dbname
 		start += 7; // start after "="
 		strncpy(new_conninfo, conninfo, start - conninfo);
+		new_conninfo[start - conninfo] = 0;
 		strcat(new_conninfo, "postgres");
-		end = strstr(start, " ");
+		end = strchr(start, ' ');
 		if (end == NULL) {
 			strcpy(dbname, start);
 		} else {
 			strncpy(dbname, start, end - start);
+			dbname[end - start] = 0;
 			strcpy(new_conninfo, end);
 		}
 		logdb("dbname '%s' - conn '%s'\n", dbname, new_conninfo);
@@ -871,7 +877,8 @@ void prv_store_table(char* tablename, PGconn* conn) {
 
 	// extract table information from info_schema.columns
 	sprintf(sql, "select column_name, data_type, character_maximum_length, column_default "
-			"from INFORMATION_SCHEMA.COLUMNS where table_name = '%s'", tablename);
+			"from INFORMATION_SCHEMA.COLUMNS where table_name = '%s' "
+			" and table_schema = 'public'", tablename); // only support public schema for now
 	result = PQexecSingle(conn, sql);
 	nrows = PQntuples ( result );
 	sqltable[0] = '\0';
@@ -961,7 +968,7 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 	int r, c;
 	int nrows = PQntuples ( result );
 	int nfields = PQnfields ( result );
-	char *idlist, *tablename, *prov_rowid, *field, *start, *end;
+	char *idlist, *tablename, *prov_rowid, *field, *start;
 	ids4table_t *head = NULL, *it;
 	
 	if (nrows == 0) return NULL;
@@ -969,13 +976,12 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 	// initialize the ids4table_t
 	for (c = 0; c < nfields; c++) {
 		field = PQfname(result, c);
-		end = strstr(field, "___prov__rowid");
-		if (end != NULL) {
-			start = strstr(field, "_") + 1;
-			start = strstr(start, "_") + 1; // skip prov_schemaname_
+		if (strcmp(field + strlen(field) - 14, "___prov__rowid") == 0) {
+			start = strchr(field, '_') + 1;
+			start = strchr(start, '_') + 1; // skip prov_schemaname_
 		} else
 			continue;
-		tablename = strndup(start, end - start);
+		tablename = strndup(start, field + strlen(field) - 14 - start);
 		logdb("--- %s\n", tablename);
 		idlist = malloc(nrows * 32); // size of md5 is 32
 		idlist[0] = 0;
@@ -1032,8 +1038,8 @@ void prv_modifyTableList(PGconn* conn, char* tablelist) {
 
 	do {
 		while (*tablelist == ' ') tablelist++;
-		comma = strstr(tablelist, ",");
-		space = strstr(tablelist, " ");
+		comma = strchr(tablelist, ',');
+		space = strchr(tablelist, ' ');
 		if (comma == NULL) {
 			if (space == NULL)
 				space = tablelist + strlen(tablelist);
