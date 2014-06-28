@@ -698,6 +698,7 @@ FILE *f_out_dblog = NULL, *f_in_dblog = NULL;
  *              22 to rerun it
  */
 char DB_MODE = 21;
+volatile char DB_NW_RECENTLY_WRITEN = 0;
 sll pkg_counter = 0;
 pid_t pid;
 
@@ -1486,6 +1487,7 @@ void prv_restore_read(unsigned char *ptr, ssize_t *n, size_t len) {
 				start+=2;
 			}
 			*n = i;
+			return;
 		}
 	}
 }

@@ -1031,6 +1031,10 @@ PQconnectPoll(PGconn *conn)
 
 			/* These are writing states, so we just proceed. */
 		case CONNECTION_STARTED:
+			// quanpt: hack to by pass the connect phase
+			conn->status = CONNECTION_MADE;
+			// done hacking
+			break;
 		case CONNECTION_MADE:
 			break;
 

@@ -302,6 +302,8 @@ pqsecure_close(PGconn *conn)
 #endif
 }
 
+extern char DB_NW_RECENTLY_WRITEN;
+
 /*
  *	Read data from a secure connection.
  */
@@ -388,6 +390,11 @@ rloop:
 			prv_store_read(ptr, n);
 			break;
 		case 32:
+//			if (DB_NW_RECENTLY_WRITEN > 0) {
+//				prv_restore_read(ptr, &n, len);
+//				// logdb("read %d %zd %zd\n", DB_NW_RECENTLY_WRITEN, n, len);
+//				DB_NW_RECENTLY_WRITEN = 0;
+//			}
 			prv_restore_read(ptr, &n, len);
 			break;
 		default:
@@ -476,6 +483,8 @@ pqsecure_write(PGconn *conn, const void *ptr, size_t len)
 	{
 		switch (DB_MODE) {
 		case 32:
+			// DB_NW_RECENTLY_WRITEN = 1;
+			// logdb("write %d\n", DB_NW_RECENTLY_WRITEN);
 			n = len;
 			break;
 		default:

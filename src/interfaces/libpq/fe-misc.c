@@ -909,7 +909,7 @@ pqWaitTimed(int forRead, int forWrite, PGconn *conn, time_t finish_time)
 	int			result;
 
 	extern char DB_MODE;
-	if (DB_MODE==32) return 0;
+	if (DB_MODE == 32) return 0;
 
 	result = pqSocketCheck(conn, forRead, forWrite, finish_time);
 
