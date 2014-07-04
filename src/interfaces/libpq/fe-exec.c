@@ -674,6 +674,7 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
 
 #define STR_LEN 50
 #define STR_LONG_LEN 10240
+#define HASH_LEN 10
 
 typedef long long sll; // signed long long
 typedef struct idsnode {
@@ -682,13 +683,21 @@ typedef struct idsnode {
 	int col;
 	struct idsnode *next;
 } ids4table_t;
+typedef struct { // temporary implementation of hash table
+	int size;
+	sll hash[HASH_LEN];
+} hashtbl_t;
 
 void prv_storeConnection(PGconn* conn);
 PGresult *PQexecSingle(PGconn *conn, const char *query);
 sll prv_hash(char *str);
+void prv_hashInit(void);
+void prv_hashPut(char *str);
+char prv_hashContains(char *str);
 
 static char is_init = 0;
 static int sessionid = 0;
+static hashtbl_t dict;
 FILE *f_out_dblog = NULL, *f_in_dblog = NULL;
 
 /*
@@ -701,6 +710,39 @@ char DB_MODE = 21;
 volatile char DB_NW_RECENTLY_WRITEN = 0;
 sll pkg_counter = 0;
 pid_t pid;
+
+/* hash functions */
+sll prv_hash(char *str) { // djb2
+    sll hash = 5381;
+    int c;
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) ^ c; /* hash * 33 + c */
+    if (hash < 0) hash=-hash;
+    return hash;
+}
+void prv_hashInit(void) {
+	int i;
+	dict.size = 0;
+	for (i = 0; i < HASH_LEN; i++) {
+		dict.hash[i] = 0;
+	}
+}
+void prv_hashPut(char *str) {
+	if (dict.size < HASH_LEN) {
+		dict.hash[dict.size++] = prv_hash(str);
+	} else {
+		logdb("Hash error size=%d\n", dict.size);
+	}
+}
+char prv_hashContains(char *str) {
+	int i;
+	sll hash = prv_hash(str);
+	for (i = 0; i < dict.size; i++)
+		if (hash == dict.hash[i])
+			return 1;
+	return 0;
+}
+/* end hash functions */
 
 ids4table_t *prv_addId4table(ids4table_t *head,
 		char* tablename, char* idlist, int col);
@@ -835,15 +877,6 @@ void prv_restoredb(char *conninfo) {
 void prv_finish(PGconn* conn) {
 	if (DB_MODE == 21 || DB_MODE == 31)
 		fclose(f_out_dblog);
-}
-
-sll prv_hash(char *str) { // djb2
-    sll hash = 5381;
-    int c;
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) ^ c; /* hash * 33 + c */
-    if (hash < 0) hash=-hash;
-    return hash;
 }
 
 void prv_storeConnection(PGconn* conn) {
@@ -1018,6 +1051,13 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
 	char sql[STR_LONG_LEN];
 	PGresult *result;
+
+	// check again hast table if table is already been modified
+	if (prv_hashContains(tablename))
+		return;
+	else
+		prv_hashPut(tablename);
+
 	logdb("mod table: %s\n", tablename);
 	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
 	sprintf(sql, "ALTER TABLE %s "
@@ -1427,11 +1467,14 @@ void prv_init_restore(char* conninfo) {
 		prv_restoredb(conninfo);
 }
 
-void prv_init_pkg_capture() {
+void prv_init_pkg_capture(void);
+void prv_init_pkg_capture(void) {
 	char *session = NULL, *db_mode;
 	char filename[20];
 	if (is_init) return;
 	is_init = 1;
+
+	prv_hashInit();
 
 	// capture
 	db_mode = getenv("PTU_DB_MODE");
@@ -2135,7 +2178,7 @@ PQexec(PGconn *conn, const char *query)
 	char tablename[256];
 	char *prov_query;
 
-	if (DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
+	if (DB_MODE == 11 || DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
 		return PQexecSingle(conn, query);
 
 	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);
