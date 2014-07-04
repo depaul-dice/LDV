@@ -31,11 +31,11 @@ rm *.dblog
 ~/assi/cde/ptu $@ ./exp.sh
 
 # prepare minimal database
-cd cde-package/cde-root/$PERM
-bin/pg_ctl stop -D data >/dev/null 2>&1
-rm -rf data
-$PERM/bin/initdb -D data >/dev/null 2>&1
-cd $oldpath
+rm -rf cde-package/cde-root/$PERM
+#~ bin/pg_ctl stop -D data >/dev/null 2>&1
+#~ rm -rf data
+#~ $PERM/bin/initdb -D data >/dev/null 2>&1
+#~ cd $oldpath
 
 ### post-process db for indirect (spawn) links
 #~ cat *.dblog > dblog.txt
