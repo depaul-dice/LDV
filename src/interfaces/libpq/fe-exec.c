@@ -961,9 +961,11 @@ void prv_store_row(ids4table_t *head, PGconn* conn) {
 				//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
 				"UPDATE %s SET _prov_insertedby = %d "
 				"WHERE _prov_insertedby = 0 "
-				"AND _prov_rowid LIKE any(string_to_array('%s',',')) "
+				"AND _prov_rowid = any(string_to_array('%s',',')) "
 				"RETURNING *;",
 				tablename, sessionid, rowids);
+		// "AND _prov_rowid LIKE any(string_to_array('%s',',')) "
+		// "AND (%s) "
 		result = PQexecSingle(conn, sql);
 
 		nrows = PQntuples ( result );
@@ -1020,7 +1022,8 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 			continue;
 		tablename = strndup(start, field + strlen(field) - 14 - start);
 		logdb("--- %s %d\n", tablename, nrows * 33);
-		idlist = malloc(nrows * 33 + 1); // size of md5 is 32+1
+//		idlist = malloc(nrows * 50 + 32); // size of md5 is 32+18
+		idlist = malloc(nrows * 33 + 32); // size of md5 is 32+1
 		if (idlist == NULL) {
 			free(tablename);
 			prv_deleteId4table(head);
@@ -1031,11 +1034,17 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 		}
 	}
 	
+	// _prov_rowid = 'xxx' OR ...
+	// _prov_rowid LIKE any(string_to_array('%s',',')) "
+
 	for ( r = 0; r < nrows; r++ ) {
 		it = head;
 		while (it != NULL) {
 			prov_rowid = PQgetvalue ( result, r, it->col );
 			if (strlen(prov_rowid) > 0) {
+//				strcat(it->idlist, "_prov_rowid='");
+//				strcat(it->idlist, prov_rowid);
+//				strcat(it->idlist, "' OR ");
 				strcat(it->idlist, prov_rowid);
 				strcat(it->idlist, ",");
 			}
@@ -1044,7 +1053,8 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 	}
 
 	for (it = head; it != NULL; it = it->next) {
-		if (it->idlist[0] != '\0') { // not empty, need to remove the end "."
+		if (it->idlist[0] != '\0') { // not empty, need to remove the end "..."
+//			it->idlist[strlen(idlist) - 4] = '\0';
 			it->idlist[strlen(idlist) - 1] = '\0';
 		}
 	}
@@ -2200,7 +2210,7 @@ PQexec(PGconn *conn, const char *query)
 		if (type == SELECT_STMT || type == UPDATE_STMT || type == DELETE_STMT) {
 			prv_modifyTableList(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
-			if (PQresultStatus(result) == PGRES_TUPLES_OK && 0) { // SELECT query
+			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
 				ids4table_t *head = prv_getRowIds(result, conn);
 				// prv_storeSelect(queryid, head, timeus, query);
@@ -2209,7 +2219,7 @@ PQexec(PGconn *conn, const char *query)
 					prv_deleteId4table(head);
 				}
 			} else {
-//				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
+				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
 			}
 			PQclear ( result );
 			free(prov_query);
