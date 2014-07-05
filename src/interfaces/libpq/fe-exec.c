@@ -673,7 +673,7 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  */
 
 #define STR_LEN 50
-#define STR_LONG_LEN 10240
+#define STR_LONG_LEN 1024000
 #define HASH_LEN 10
 
 typedef long long sll; // signed long long
@@ -1014,8 +1014,8 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 		} else
 			continue;
 		tablename = strndup(start, field + strlen(field) - 14 - start);
-		logdb("--- %s\n", tablename);
-		idlist = malloc(nrows * 32); // size of md5 is 32
+		logdb("--- %s %d\n", tablename, nrows * 33);
+		idlist = malloc(nrows * 33); // size of md5 is 32+1
 		idlist[0] = 0;
 		if (idlist == NULL) {
 			free(tablename);
