@@ -673,7 +673,7 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  */
 
 #define STR_LEN 50
-#define STR_LONG_LEN 1024000
+#define STR_LONG_LEN 102400
 #define HASH_LEN 10
 
 typedef long long sll; // signed long long
@@ -691,13 +691,13 @@ typedef struct { // temporary implementation of hash table
 void prv_storeConnection(PGconn* conn);
 PGresult *PQexecSingle(PGconn *conn, const char *query);
 sll prv_hash(char *str);
-void prv_hashInit(void);
-void prv_hashPut(char *str);
-char prv_hashContains(char *str);
+void prv_hashInit(hashtbl_t *dict);
+void prv_hashPut(hashtbl_t *dict, char *str);
+char prv_hashContains(hashtbl_t *dict, char *str);
 
 static char is_init = 0;
 static int sessionid = 0;
-static hashtbl_t dict;
+static hashtbl_t dict_tblmod, dict_tblstore;
 FILE *f_out_dblog = NULL, *f_in_dblog = NULL;
 
 /*
@@ -720,25 +720,25 @@ sll prv_hash(char *str) { // djb2
     if (hash < 0) hash=-hash;
     return hash;
 }
-void prv_hashInit(void) {
+void prv_hashInit(hashtbl_t *dict) {
 	int i;
-	dict.size = 0;
+	dict->size = 0;
 	for (i = 0; i < HASH_LEN; i++) {
-		dict.hash[i] = 0;
+		dict->hash[i] = 0;
 	}
 }
-void prv_hashPut(char *str) {
-	if (dict.size < HASH_LEN) {
-		dict.hash[dict.size++] = prv_hash(str);
+void prv_hashPut(hashtbl_t *dict, char *str) {
+	if (dict->size < HASH_LEN) {
+		dict->hash[dict->size++] = prv_hash(str);
 	} else {
-		logdb("Hash error size=%d\n", dict.size);
+		logdb("Hash error size=%d\n", dict->size);
 	}
 }
-char prv_hashContains(char *str) {
+char prv_hashContains(hashtbl_t *dict, char *str) {
 	int i;
 	sll hash = prv_hash(str);
-	for (i = 0; i < dict.size; i++)
-		if (hash == dict.hash[i])
+	for (i = 0; i < dict->size; i++)
+		if (hash == dict->hash[i])
 			return 1;
 	return 0;
 }
@@ -907,6 +907,11 @@ void prv_store_table(char* tablename, PGconn* conn) {
 	int nrows, r;
 	PGresult *result;
 
+	if (prv_hashContains(&dict_tblstore, tablename))
+		return;
+	else
+		prv_hashPut(&dict_tblstore, tablename);
+
 	// extract table information from info_schema.columns
 	sprintf(sql, "select column_name, data_type, character_maximum_length, column_default "
 			"from INFORMATION_SCHEMA.COLUMNS where table_name = '%s' "
@@ -1015,14 +1020,15 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 			continue;
 		tablename = strndup(start, field + strlen(field) - 14 - start);
 		logdb("--- %s %d\n", tablename, nrows * 33);
-		idlist = malloc(nrows * 33); // size of md5 is 32+1
-		idlist[0] = 0;
+		idlist = malloc(nrows * 33 + 1); // size of md5 is 32+1
 		if (idlist == NULL) {
 			free(tablename);
 			prv_deleteId4table(head);
 			return NULL;
-		} else
+		} else {
+			idlist[0] = 0;
 			head = prv_addId4table(head, tablename, idlist, c);
+		}
 	}
 	
 	for ( r = 0; r < nrows; r++ ) {
@@ -1053,10 +1059,10 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 	PGresult *result;
 
 	// check again hast table if table is already been modified
-	if (prv_hashContains(tablename))
+	if (prv_hashContains(&dict_tblmod, tablename))
 		return;
 	else
-		prv_hashPut(tablename);
+		prv_hashPut(&dict_tblmod, tablename);
 
 	logdb("mod table: %s\n", tablename);
 	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
@@ -1474,7 +1480,8 @@ void prv_init_pkg_capture(void) {
 	if (is_init) return;
 	is_init = 1;
 
-	prv_hashInit();
+	prv_hashInit(&dict_tblmod);
+	prv_hashInit(&dict_tblstore);
 
 	// capture
 	db_mode = getenv("PTU_DB_MODE");

@@ -6,12 +6,12 @@ cp single query
 oldpath=`pwd`
 if [ "$PERM" = "" ]
 then
-	if [ `hostname` = "qpc" ]
-	then
-	  PERM=/home/quanpt/myapps/perm
-	else
-	  PERM=/var/tmp/quanpt/froot/perm
-	fi
+  if [ `hostname` = "qpc" ]
+  then
+    PERM=/home/quanpt/myapps/perm
+  else
+    PERM=/var/tmp/quanpt/froot/perm
+  fi
 fi
 
 # prepare original database
@@ -25,10 +25,12 @@ cd $oldpath
 ### start
 export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=21
+export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
 rm *.dblog
-#~ ./exp.sh
-~/assi/cde/ptu $@ ./exp.sh
+
+time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
+cat time.run.txt
 
 # prepare minimal database
 cd cde-package/cde-root/$PERM

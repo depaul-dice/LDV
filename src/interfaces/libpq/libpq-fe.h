@@ -529,7 +529,7 @@ void PQfinishSingle(PGconn *conn);
 void prv_store_read(unsigned char *ptr, ssize_t n);
 void prv_restore_read(unsigned char *ptr, ssize_t *n, size_t len);
 
-#define DEBUG 1
+#define DEBUG 0
 #define logdb(fmt, ...) \
     do { if (DEBUG) fprintf(stderr, "debug: " fmt, __VA_ARGS__); } while (0)
 

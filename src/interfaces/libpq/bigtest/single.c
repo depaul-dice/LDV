@@ -80,9 +80,11 @@ int main(int argc, char** argv) {
 			for (; counter > 0; counter--)
 				insert(conn);
         } else {
-        	sprintf(sql, "SELECT sum(value) FROM tbl1 WHERE value < %d", counter);
-            doSQL ( conn, sql );
-//          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
+        	for (; counter > 0; counter--) {
+				sprintf(sql, "SELECT sum(value) FROM tbl1 WHERE value < %d", counter);
+				doSQL ( conn, sql );
+	//          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
+        	}
         }
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
