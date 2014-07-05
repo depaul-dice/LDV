@@ -22,10 +22,9 @@ mv time.run.txt time.run.ptumode31.txt
 for i in `seq $N`; do
   ./rcde3.sh
 done
-mv time.exp.txt time.exp.ptumode32.txt
+mv cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt time.exp.ptumode32.txt
 mv time.run.txt time.run.ptumode32.txt
 
-exit
 #==== case 2 ====
 for i in `seq $N`; do
   ./run0.sh
