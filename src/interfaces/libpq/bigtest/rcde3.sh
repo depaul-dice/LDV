@@ -27,11 +27,20 @@ fi
 #~ export PTU_DB_REPLAY=dblog.txt
 #~ cp `ls *.dblog | tail -n 1` dblog.txt
 
-export PTU_DB_REPLAY=`ls *.dblog | tail -n 1`
+cp *.dblog cde-package/cde-root/$oldpath/
+
 export PTU_DB_MODE=32
-cp $PTU_DB_REPLAY cde-package/cde-root/$oldpath
-echo "Rerun query without actual postgresql server"
+export LD_LIBRARY_PATH=../
+N=10000
+
 cd cde-package/cde-root/$oldpath
-$oldpath/cde-package/cde-exec ./query "host=localhost dbname=single" 0
+for i in `seq 3`; do
+  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+  echo $PTU_DB_REPLAY $N $i
+  time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=single" 9$i $N
+done
+echo time.exp.txt
+tail -n 9 time.exp.txt | grep real
+
 
 

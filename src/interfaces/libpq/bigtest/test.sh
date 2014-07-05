@@ -1,8 +1,32 @@
 #!/bin/sh
 
 rm time.exp.txt time.run.txt
-N=100
 
+if [ "`grep N= exp.sh`" != "`grep N= rcde3.sh`" ]
+then
+  echo "Don't bother, check N in exp.sh and rcde3.sh"
+  exit
+fi
+
+N=10
+
+#==== case 3 ====
+
+for i in `seq $N`; do
+  ./run3.sh
+done
+mv time.exp.txt time.exp.ptumode31.txt
+mv time.run.txt time.run.ptumode31.txt
+
+
+for i in `seq $N`; do
+  ./rcde3.sh
+done
+mv time.exp.txt time.exp.ptumode32.txt
+mv time.run.txt time.run.ptumode32.txt
+
+exit
+#==== case 2 ====
 for i in `seq $N`; do
   ./run0.sh
 done

@@ -20,9 +20,9 @@ void doSQL ( PGconn *conn, char *command ) {
     case PGRES_TUPLES_OK: {
         int r, n;
         int nrows = PQntuples ( result );
-//        int nfields = PQnfields ( result );
+        int nfields = PQnfields ( result );
 //        printf ( "number of rows returned = %d\n", nrows );
-//        //~ printf ( "number of fields returned = %d\n", nfields );
+//        printf ( "number of fields returned = %d\n", nfields );
 //
 //        for ( r = 0; r < nrows; r++ ) {
 //            for ( n = 0; n < nfields; n++ )
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     counter = MYMAGICN;
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
-        //printf ( "connection made\n" );
+//        printf ( "connection made\n" );
         if (mode == 1) {
 			for (; counter > 0; counter--)
 				insert(conn);

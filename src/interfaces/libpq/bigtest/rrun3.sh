@@ -27,10 +27,14 @@ fi
 #~ export PTU_DB_REPLAY=dblog.txt
 #~ cp `ls *.dblog | tail -n 1` dblog.txt
 
-export PTU_DB_REPLAY=`ls *.dblog | tail -n 1`
 export PTU_DB_MODE=32
-echo "Rerun query without actual postgresql server"
-./query "host=localhost dbname=single" 0
+N=10000
+
+for i in `seq 3`; do
+  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+  echo $PTU_DB_REPLAY $N $i
+  time -p ./single "host=localhost dbname=single" 9$i $N
+done
 
 #~ ./exp.sh
 exit

@@ -26,9 +26,14 @@ cd $oldpath
 export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=31
 unset PTU_DB_REPLAY
+export LD_LIBRARY_PATH=../
 rm *.dblog
 #~ ./exp.sh
-~/assi/cde/ptu $@ ./exp.sh
+time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
+echo time.run.txt
+tail -n 3 time.run.txt | grep real
+echo time.exp.txt
+tail -n 9 time.exp.txt | grep real
 
 # prepare minimal database
 rm -rf cde-package/cde-root/$PERM
