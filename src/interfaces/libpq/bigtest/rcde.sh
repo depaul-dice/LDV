@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# fake re-run
 cp single query
 oldpath=`pwd`
 if [ "$PERM" = "" ]
@@ -31,8 +30,7 @@ fi
 ### start
 export PTU_DB_REPLAY=/dblog.txt
 export PTU_DB_MODE=22
-#~ ./exp.sh
 
 # real re-run
 cd cde-package
-sh cde.log
+time -p -a -o ../time.run.txt sh cde.log

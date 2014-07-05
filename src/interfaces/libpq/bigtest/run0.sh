@@ -1,7 +1,6 @@
 #!/bin/sh
 
 ### prepare clean db and newest binary
-rm -rf cde-package
 cp single query
 oldpath=`pwd`
 if [ "$PERM" = "" ]
@@ -27,6 +26,6 @@ export LD_LIBRARY_PATH=$PERM/lib
 unset PTU_DB_REPLAY
 rm *.dblog
 
-./exp.sh
+time -p -a -o time.run.txt ./exp.sh
 echo time.exp.txt
 tail -n 9 time.exp.txt | grep real
