@@ -18,21 +18,15 @@ sleep 3
 
 # start clients
 #./single "host=localhost dbname=single" 100 2>100.log &
-./single "host=localhost dbname=single" 99 1000 2>/dev/null &
-./single "host=localhost dbname=single" 98 1000 2>/dev/null &
+#~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
-while [ `ps | grep single | wc -c` -ne 0 ]
-do
-  sleep 1
-done
 
-# start query
-./query "host=localhost dbname=single" 0 100
+time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 1000
+
+time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 92 1000
+
+time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 1000
 
 # stop perm
-while [ `ps | grep query | wc -c` -ne 0 ]
-do
-  sleep 1
-done
 cd $PERM
 bin/pg_ctl stop -D data

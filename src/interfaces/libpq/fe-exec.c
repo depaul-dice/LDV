@@ -2200,7 +2200,7 @@ PQexec(PGconn *conn, const char *query)
 		if (type == SELECT_STMT || type == UPDATE_STMT || type == DELETE_STMT) {
 			prv_modifyTableList(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
-			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
+			if (PQresultStatus(result) == PGRES_TUPLES_OK && 0) { // SELECT query
 				//~ prv_storeSelect(queryid, version, timeus, query);
 				ids4table_t *head = prv_getRowIds(result, conn);
 				// prv_storeSelect(queryid, head, timeus, query);
@@ -2209,7 +2209,7 @@ PQexec(PGconn *conn, const char *query)
 					prv_deleteId4table(head);
 				}
 			} else {
-				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
+//				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
 			}
 			PQclear ( result );
 			free(prov_query);

@@ -30,7 +30,10 @@ unset PTU_DB_REPLAY
 rm *.dblog
 
 time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
-cat time.run.txt
+echo time.run.txt
+tail -n 3 time.run.txt | grep real
+echo time.exp.txt
+tail -n 9 time.exp.txt | grep real
 
 # prepare minimal database
 cd cde-package/cde-root/$PERM

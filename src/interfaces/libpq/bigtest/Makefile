@@ -16,8 +16,8 @@ DIRS = access bootstrap catalog parser commands executor lib libpq \
 	storage tcop tsearch utils ../timezone
 SUBSYSOBJS = $(DIRS:%=$(top_builddir)/src/backend/%/SUBSYS.o)
 
-OBJS = single.o parser.o strfuncs.o
-PROGS = single parser
+OBJS = single.o
+PROGS = single
 
 all: $(PROGS)
 
