@@ -1578,13 +1578,14 @@ void prv_init_pkg_capture(void) {
 	if (is_init) return;
 	is_init = 1;
 
-	prv_hashInit(&dict_tblmod);
-	prv_hashInit(&dict_tblstore);
-
 	// capture
 	db_mode = getenv("PTU_DB_MODE");
 	if (db_mode != NULL) DB_MODE = atoi(db_mode);
 	logdb("dbmode: %d\n", DB_MODE);
+	if (DB_MODE==0) return;
+
+	prv_hashInit(&dict_tblmod);
+	prv_hashInit(&dict_tblstore);
 
 	// session
 	pid = getpid();
@@ -2283,7 +2284,7 @@ PQexec(PGconn *conn, const char *query)
 	char tablename[256];
 	char *prov_query;
 
-	if (DB_MODE == 11 || DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
+	if (DB_MODE == 0 || DB_MODE == 11 || DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
 		return PQexecSingle(conn, query);
 
 	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);

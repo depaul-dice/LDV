@@ -16,9 +16,9 @@ fi
 
 # prepare original database
 cd $PERM
-killall psql
-bin/pg_ctl stop -D data
-rm -rf data
+killall psql 2>/dev/null
+bin/pg_ctl stop -D data 2>/dev/null
+rm -rf data 2>/dev/null
 tar xzf $oldpath/data.startup.tgz
 cd $oldpath
 
@@ -33,7 +33,7 @@ time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
 echo time.run.txt
 tail -n 3 time.run.txt | grep real
 echo time.exp.txt
-tail -n 12 time.exp.txt | grep real
+tail -n 3 time.exp.txt | grep real
 
 # prepare minimal database
 rm -rf cde-package/cde-root/$PERM
