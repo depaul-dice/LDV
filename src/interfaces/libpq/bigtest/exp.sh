@@ -21,12 +21,15 @@ sleep 3
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
 N=10000
+N=1000
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
 
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 92 $N
 
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 $N
 
+time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 94 $N
+
 # stop perm
 cd $PERM
-bin/pg_ctl stop -D data
+bin/pg_ctl stop -D data > /dev/null 2>&1

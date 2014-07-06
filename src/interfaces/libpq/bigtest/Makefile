@@ -8,8 +8,8 @@ subdir = src/interfaces/libpq/test
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
-override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS)
-override LDLIBS := $(libpq_pgport) $(LDLIBS)
+override CPPFLAGS := -pg -I$(libpq_srcdir) $(CPPFLAGS)
+override LDLIBS := -pg $(libpq_pgport) $(LDLIBS)
 
 DIRS = access bootstrap catalog parser commands executor lib libpq \
 	metaq nodes optimizer port postmaster provrewrite regex rewrite \
@@ -21,8 +21,8 @@ PROGS = single
 
 all: $(PROGS)
 
-single: single.c
-	$(CC) $(CFLAGS) -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq -lpq  -o single
+single: single.c ../libpq.a
+	$(CC) $(CFLAGS) -pg -I../../../../src/interfaces/libpq -I../../../../src/include -D_GNU_SOURCE -I/usr/include/libxml2  -L../../../../src/port  -Wl,-rpath,'./'  single.c  -L../../../../src/port -lpgport -L../../../../src/interfaces/libpq ../libpq.a -lcrypt  -o single
 	cp single query
 	
 parser: parser.o strfuncs.o $(SUBSYSOBJS)

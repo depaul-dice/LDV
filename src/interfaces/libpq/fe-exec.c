@@ -945,7 +945,7 @@ void prv_store_table(char* tablename, PGconn* conn) {
 
 void prv_store_row(ids4table_t *head, PGconn* conn);
 void prv_store_row(ids4table_t *head, PGconn* conn) {
-	char sql[STR_LONG_LEN], fields[STR_LONG_LEN], values[STR_LONG_LEN];
+	char sql[STR_LONG_LEN], values[STR_LONG_LEN];
 	char *tablename, *rowids;
 	PGresult *result;
 	int r, n, nrows, nfields;
@@ -969,18 +969,18 @@ void prv_store_row(ids4table_t *head, PGconn* conn) {
 		result = PQexecSingle(conn, sql);
 
 		nrows = PQntuples ( result );
+		nfields = PQnfields ( result );
 
 		// prepare field name list
-		fields[0] = 0;
-		strcat(fields, "(");
-		nfields = PQnfields ( result );
-		for ( n = 0; n < nfields; n++ ) {
-			strcat(fields, PQfname ( result, n ));
-			if (n < nfields - 1) {
-				strcat(fields, ", ");
-			} else
-				strcat(fields, ")");
-		}
+//		fields[0] = 0;
+//		strcat(fields, "(");
+//		for ( n = 0; n < nfields; n++ ) {
+//			strcat(fields, PQfname ( result, n ));
+//			if (n < nfields - 1) {
+//				strcat(fields, ", ");
+//			} else
+//				strcat(fields, ")");
+//		}
 
 		for ( r = 0; r < nrows; r++ ) {
 			values[0] = 0;
@@ -995,7 +995,7 @@ void prv_store_row(ids4table_t *head, PGconn* conn) {
 			fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
 					PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
 					tablename);
-			fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
+			fprintf(f_out_dblog, "INSERT INTO %s VALUES %s;\n", tablename, values);
 		}
 
 		PQclear(result);
@@ -1121,10 +1121,11 @@ char *prv_getStart(char* str, char** smt, int size, int* smt_type) {
   int i;
   char *res;
   for (i = 0; i < size; i++) {
-    res = strcasestr(str, smt[i]);
-    if (res != NULL) {
+//    res = strcasestr(str, smt[i]);
+//    if (res != NULL) {
+	if (strncasecmp(str, smt[i], 6) == 0) {
       *smt_type = i;
-      return res + strlen(smt[i]) + 1; // skip one space as well
+      return str + strlen(smt[i]) + 1; // skip one space as well
     }
   }
   return NULL;
@@ -1190,8 +1191,9 @@ void prv_parseRest(char* str, char** markers, int size, ...) {
 #define INSERT_STMT 1
 #define UPDATE_STMT 2
 #define DELETE_STMT 3
+#define BYPASS_STMT 4
 
-#define SMT_N 4
+#define SMT_N 5
 #define SELECT_N 2
 #define INSERT_N 2
 #define UPDATE_N 3
@@ -1203,8 +1205,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *table) {
 
-	char *result;
-	char *smt[SMT_N] = {"select", "insert into", "update", "delete from"};
+	char *result = NULL;
+	char *smt[SMT_N] = {"select", "insert into", "update", "delete from", "bypass"};
 	char *select[SELECT_N] = {"from", "where"};
 	char *insert[INSERT_N] = {"values", "returning"};
 	char *update[UPDATE_N] = {"set", "from", "where"};
@@ -1223,6 +1225,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		if (where[0] != 0) {
 			strcat(result, " WHERE ");
 			strcat(result, where);
+			strcat(result, " AND _prov_insertedby = 0");
 		}
 		break;
 	case INSERT_STMT:
@@ -1254,6 +1257,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 			strcat(result, " WHERE ");
 			strcat(result, where);
 		}
+		break;
+	case BYPASS_STMT:
 		break;
 	default:
 		break;
@@ -2225,9 +2230,12 @@ PQexec(PGconn *conn, const char *query)
 			free(prov_query);
 			return PQexecSingle(conn, query);
 		}
-	} else
-		printf("nothing\n");
-	return PQexecSingle(conn, query);
+	}
+
+	if (type == BYPASS_STMT)
+		return PQexecSingle(conn, query + 7);
+	else
+		return PQexecSingle(conn, query);
 }
 
 /*

@@ -92,10 +92,16 @@ int main(int argc, char** argv) {
 				doSQL ( conn, sql );
 	//          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
         	}
-        }  else if (mode == 3) {
+        } else if (mode == 3) {
         	for (; counter > 0; counter--)
         		update(conn);
+        } else if (mode == 4) {
+        	for (; counter > 0; counter--) {
+        		sprintf(sql, "BYPASS SELECT PROVENANCE sum(value) FROM tbl1 WHERE value < %d", counter);
+        		doSQL ( conn, sql );
+        	}
         }
+
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
 
