@@ -33,7 +33,7 @@ time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
 echo time.run.txt
 tail -n 3 time.run.txt | grep real
 echo time.exp.txt
-tail -n 9 time.exp.txt | grep real
+tail -n 12 time.exp.txt | grep real
 
 # prepare minimal database
 cd cde-package/cde-root/$PERM

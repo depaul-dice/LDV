@@ -19,6 +19,7 @@ mv time.exp.txt time.exp.ptumode31.txt
 mv time.run.txt time.run.ptumode31.txt
 
 
+echo > cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt
 for i in `seq $N`; do
   ./rcde3.sh
 done

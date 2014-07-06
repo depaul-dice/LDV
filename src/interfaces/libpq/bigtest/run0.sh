@@ -28,4 +28,4 @@ rm *.dblog
 
 time -p -a -o time.run.txt ./exp.sh
 echo time.exp.txt
-tail -n 9 time.exp.txt | grep real
+tail -n 12 time.exp.txt | grep real

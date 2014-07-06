@@ -898,11 +898,11 @@ void prv_storeSelect(char* selectid, char* insertids, uint64_t timeus, const cha
 			getpid(), selectid, insertids, timeus, sql);
 }
 
-void prv_store_table(char* tablename, PGconn* conn);
+void prv_storeTable(PGconn* conn, char* tablename);
 // CREATE TABLE tbl1 (id integer,value integer,_prov_p character varying(40) DEFAULT md5((random())::text),
 //_prov_insertedby integer DEFAULT 0,_prov_v timestamp without time zone DEFAULT now(),
 //_prov_rowid character varying(32) DEFAULT md5((random())::text));
-void prv_store_table(char* tablename, PGconn* conn) {
+void prv_storeTable(PGconn* conn, char* tablename) {
 	char sql[STR_LONG_LEN], sqltable[STR_LONG_LEN];
 	int nrows, r;
 	PGresult *result;
@@ -943,19 +943,53 @@ void prv_store_table(char* tablename, PGconn* conn) {
 	fprintf(f_out_dblog, "prv_store_table\t%s\n", sqltable);
 }
 
+void prv_storeTuple(char* tablename, PGresult *result);
+void prv_storeTuple(char* tablename, PGresult *result) {
+	int r, n, nrows, nfields;
+	char values[STR_LONG_LEN];
+	nrows = PQntuples ( result );
+	nfields = PQnfields ( result );
+
+	// prepare field name list
+//	fields[0] = 0;
+//	strcat(fields, "(");
+//	for ( n = 0; n < nfields; n++ ) {
+//		strcat(fields, PQfname ( result, n ));
+//		if (n < nfields - 1) {
+//			strcat(fields, ", ");
+//		} else
+//			strcat(fields, ")");
+//	}
+
+	for ( r = 0; r < nrows; r++ ) {
+		values[0] = 0;
+		strcat(values, "('");
+		for ( n = 0; n < nfields; n++ ) {
+			strcat(values, PQgetvalue ( result, r, n ));
+			if (n < nfields - 1) {
+				strcat(values, "', '");
+			} else
+				strcat(values, "')");
+		}
+		fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
+				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
+				tablename);
+		fprintf(f_out_dblog, "INSERT INTO %s VALUES %s;\n", tablename, values);
+	}
+}
+
 void prv_store_row(ids4table_t *head, PGconn* conn);
 void prv_store_row(ids4table_t *head, PGconn* conn) {
-	char sql[STR_LONG_LEN], fields[STR_LONG_LEN], values[STR_LONG_LEN];
+	char sql[STR_LONG_LEN], values[STR_LONG_LEN];
 	char *tablename, *rowids;
 	PGresult *result;
-	int r, n, nrows, nfields;
 	ids4table_t *it;
 
 	for (it = head; it != NULL; it = it->next) {
 		tablename = it->tablename;
 		rowids = it->idlist;
 
-		prv_store_table(tablename, conn);
+		prv_storeTable(conn, tablename);
 
 		sprintf(sql,
 				//"SELECT * FROM %s WHERE _prov_rowid LIKE any(string_to_array('%s',','));",
@@ -967,37 +1001,7 @@ void prv_store_row(ids4table_t *head, PGconn* conn) {
 		// "AND _prov_rowid LIKE any(string_to_array('%s',',')) "
 		// "AND (%s) "
 		result = PQexecSingle(conn, sql);
-
-		nrows = PQntuples ( result );
-
-		// prepare field name list
-		fields[0] = 0;
-		strcat(fields, "(");
-		nfields = PQnfields ( result );
-		for ( n = 0; n < nfields; n++ ) {
-			strcat(fields, PQfname ( result, n ));
-			if (n < nfields - 1) {
-				strcat(fields, ", ");
-			} else
-				strcat(fields, ")");
-		}
-
-		for ( r = 0; r < nrows; r++ ) {
-			values[0] = 0;
-			strcat(values, "('");
-			for ( n = 0; n < nfields; n++ ) {
-				strcat(values, PQgetvalue ( result, r, n ));
-				if (n < nfields - 1) {
-					strcat(values, "', '");
-				} else
-					strcat(values, "')");
-			}
-			fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
-					PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
-					tablename);
-			fprintf(f_out_dblog, "INSERT INTO %s %s VALUES %s;\n", tablename, fields, values);
-		}
-
+		prv_storeTuple(tablename, result);
 		PQclear(result);
 	}
 }
@@ -1062,8 +1066,32 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 	return head;
 }
 
-void prv_modifytable(PGconn* conn, char* tablename);
-void prv_modifytable(PGconn* conn, char* tablename) {
+void prv_extractTuple(PGconn* conn, char* tablename, char* view);
+void prv_extractTuple(PGconn* conn, char* tablename, char* view) {
+	char sql[STR_LONG_LEN];
+	PGresult *result;
+	int restatus;
+	sprintf(sql,
+			"UPDATE %s SET _prov_insertedby = %d FROM %s "
+			"WHERE %s._prov_rowid = %s.prov_public_%s___prov__rowid "
+			"AND %s._prov_insertedby = 0 RETURNING %s.*;",
+			tablename, sessionid, view,
+			tablename, view, tablename,
+			tablename, tablename);
+	// "AND _prov_rowid LIKE any(string_to_array('%s',',')) "
+	// "AND (%s) "
+	result = PQexecSingle(conn, sql);
+	restatus = PQresultStatus(result);
+	if (restatus == PGRES_TUPLES_OK) {
+		prv_storeTuple(tablename, result);
+		PQclear(result);
+	} else {
+		printf("status is %s\n", PQresStatus(restatus));
+	}
+}
+
+void prv_modifyTable(PGconn* conn, char* tablename);
+void prv_modifyTable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
 	char sql[STR_LONG_LEN];
 	PGresult *result;
@@ -1087,6 +1115,30 @@ void prv_modifytable(PGconn* conn, char* tablename) {
 	PQclear(result);
 }
 
+char* prv_createView(PGconn* conn, char* prov_query);
+char* prv_createView(PGconn* conn, char* prov_query) {
+	char sql[STR_LONG_LEN];
+	char *view = malloc(STR_LEN);
+	PGresult *result;
+	sprintf(view, "_prov_view_%lld", prv_hash(prov_query));
+	sprintf(sql, "CREATE OR REPLACE TEMP VIEW %s AS %s",
+			view, prov_query);
+//	PQclear(PQexecSingle(conn, sql));
+	result = PQexecSingle(conn, sql);
+	if (PQresultStatus(result) == PGRES_COMMAND_OK)
+		return view;
+	else
+		return NULL;
+}
+
+void prv_dropView(PGconn* conn, char* view);
+void prv_dropView(PGconn* conn, char* view) {
+	char sql[STR_LEN];
+	sprintf(sql, "DROP VIEW IF EXISTS %s", view);
+//	PQclear(PQexecSingle(conn, sql));
+	PQexecSingle(conn, sql);
+}
+
 void prv_modifyTableList(PGconn* conn, char* tablelist);
 void prv_modifyTableList(PGconn* conn, char* tablelist) {
 	char *space, *comma, tablename[STR_LEN];
@@ -1104,13 +1156,44 @@ void prv_modifyTableList(PGconn* conn, char* tablelist) {
 		}
 		strncpy(tablename, tablelist, space - tablelist);
 		tablename[space - tablelist] = 0;
-		prv_modifytable(conn, tablename);
+		prv_modifyTable(conn, tablename);
 		if (comma == NULL)
 			break;
 		else
 			tablelist = comma + 1;
 	} while (true);
 }
+
+void prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
+		char* provquery);
+void prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
+		char* provquery) {
+	char *space, *comma, *view, tablename[STR_LEN];
+
+	view = prv_createView(conn, provquery);
+	do {
+		while (*tablelist == ' ') tablelist++;
+		comma = strchr(tablelist, ',');
+		space = strchr(tablelist, ' ');
+		if (comma == NULL) {
+			if (space == NULL)
+				space = tablelist + strlen(tablelist);
+		} else {
+			if (space == NULL || space > comma)
+				space = comma;
+		}
+		strncpy(tablename, tablelist, space - tablelist);
+		tablename[space - tablelist] = 0;
+		prv_storeTable(conn, tablename);
+		prv_extractTuple(conn, tablename, view);
+		if (comma == NULL)
+			break;
+		else
+			tablelist = comma + 1;
+	} while (true);
+	prv_dropView(conn, view);
+}
+
 
 /*
  * Get the statement type in smt_type
@@ -1121,10 +1204,11 @@ char *prv_getStart(char* str, char** smt, int size, int* smt_type) {
   int i;
   char *res;
   for (i = 0; i < size; i++) {
-    res = strcasestr(str, smt[i]);
-    if (res != NULL) {
+//    res = strcasestr(str, smt[i]);
+//    if (res != NULL) {
+	if (strncasecmp(str, smt[i], 6) == 0) {
       *smt_type = i;
-      return res + strlen(smt[i]) + 1; // skip one space as well
+      return str + strlen(smt[i]) + 1; // skip one space as well
     }
   }
   return NULL;
@@ -1190,8 +1274,9 @@ void prv_parseRest(char* str, char** markers, int size, ...) {
 #define INSERT_STMT 1
 #define UPDATE_STMT 2
 #define DELETE_STMT 3
+#define BYPASS_STMT 4
 
-#define SMT_N 4
+#define SMT_N 5
 #define SELECT_N 2
 #define INSERT_N 2
 #define UPDATE_N 3
@@ -1203,8 +1288,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 char *prv_assembleQuery(const char *query, char* queryid, int version,
 		uint64_t timeus, int *type, char *table) {
 
-	char *result;
-	char *smt[SMT_N] = {"select", "insert into", "update", "delete from"};
+	char *result = NULL;
+	char *smt[SMT_N] = {"select", "insert into", "update", "delete from", "bypass"};
 	char *select[SELECT_N] = {"from", "where"};
 	char *insert[INSERT_N] = {"values", "returning"};
 	char *update[UPDATE_N] = {"set", "from", "where"};
@@ -1223,6 +1308,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 		if (where[0] != 0) {
 			strcat(result, " WHERE ");
 			strcat(result, where);
+//			strcat(result, " AND _prov_insertedby = 0");
 		}
 		break;
 	case INSERT_STMT:
@@ -1254,6 +1340,8 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 			strcat(result, " WHERE ");
 			strcat(result, where);
 		}
+		break;
+	case BYPASS_STMT:
 		break;
 	default:
 		break;
@@ -2202,32 +2290,39 @@ PQexec(PGconn *conn, const char *query)
 	if (prov_query != NULL) {
 		logdb("db: %d %s %s\n", type, tablename, prov_query);
 		if (type == INSERT_STMT) {
-			prv_modifytable(conn, tablename);
+			prv_modifyTable(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
-			free(prov_query);
-			return result;
-		}
-		if (type == SELECT_STMT || type == UPDATE_STMT || type == DELETE_STMT) {
+		} else if (type == UPDATE_STMT || type == DELETE_STMT) {
 			prv_modifyTableList(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
-			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
-				//~ prv_storeSelect(queryid, version, timeus, query);
-				ids4table_t *head = prv_getRowIds(result, conn);
-				// prv_storeSelect(queryid, head, timeus, query);
-				if (head != NULL) {
-					prv_store_row(head, conn);
-					prv_deleteId4table(head);
-				}
-			} else {
-				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
-			}
 			PQclear ( result );
-			free(prov_query);
-			return PQexecSingle(conn, query);
+			result = PQexecSingle(conn, query);
+		} else if (type == SELECT_STMT) {
+			prv_modifyTableList(conn, tablename);
+			prv_extractTuplesFromTable(conn, tablename, prov_query);
+//			result = PQexecSingle(conn, prov_query);
+//			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
+//				//~ prv_storeSelect(queryid, version, timeus, query);
+//				ids4table_t *head = prv_getRowIds(result, conn);
+//				// prv_storeSelect(queryid, head, timeus, query);
+//				if (head != NULL) {
+//					prv_store_row(head, conn);
+//					prv_deleteId4table(head);
+//				}
+//			} else {
+//				fprintf(stderr, "Error: %s\n", PQresStatus(PQresultStatus(result)));
+//			}
+//			PQclear ( result );
+			result =  PQexecSingle(conn, query);
 		}
-	} else
-		printf("nothing\n");
-	return PQexecSingle(conn, query);
+		free(prov_query);
+		return result;
+	}
+
+	if (type == BYPASS_STMT)
+		return PQexecSingle(conn, query + 7);
+	else
+		return PQexecSingle(conn, query);
 }
 
 /*
