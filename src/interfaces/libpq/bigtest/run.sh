@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### prepare clean db and newest binary
-rm -rf cde-package
+rm -rf cde-package 2>/dev/null
 cp single query
 oldpath=`pwd`
 if [ "$PERM" = "" ]
@@ -16,9 +16,9 @@ fi
 
 # prepare original database
 cd $PERM
-killall psql
-bin/pg_ctl stop -D data
-rm -rf data
+killall psql 2>/dev/null
+bin/pg_ctl stop -D data 2>/dev/null
+rm -rf data 2>/dev/null
 tar xzf $oldpath/data.startup.tgz
 cd $oldpath
 
@@ -27,20 +27,13 @@ export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=21
 export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
-rm *.dblog
+rm *.dblog 2>/dev/null
 
 time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
 echo time.run.txt
 tail -n 3 time.run.txt | grep real
 echo time.exp.txt
-tail -n 12 time.exp.txt | grep real
-
-# prepare minimal database
-cd cde-package/cde-root/$PERM
-bin/pg_ctl stop -D data >/dev/null 2>&1
-rm -rf data
-$PERM/bin/initdb -D data >/dev/null 2>&1
-cd $oldpath
+tail -n 9 time.exp.txt | grep real
 
 ### post-process db for indirect (spawn) links
 cat *.dblog > dblog.txt

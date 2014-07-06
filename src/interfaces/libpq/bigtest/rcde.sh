@@ -12,14 +12,12 @@ then
 	fi
 fi
 
-# prepare empty database
-#~ cd $PERM
-#~ killall psql >/dev/null 2>&1 
-#~ bin/pg_ctl stop -D data >/dev/null 2>&1 
-#~ rm -rf data >/dev/null 2>&1 
-#~ bin/initdb -D data >/dev/null 2>&1 
-#~ chmod -R go-rx data
-#~ cd $oldpath
+# prepare minimal database
+cd cde-package/cde-root/$PERM
+bin/pg_ctl stop -D data >/dev/null 2>&1
+rm -rf data
+$PERM/bin/initdb -D data >/dev/null 2>&1
+cd $oldpath
 
 ####
 #~ remember to add to cde.options
@@ -34,3 +32,5 @@ export PTU_DB_MODE=22
 # real re-run
 cd cde-package
 time -p -a -o ../time.run.txt sh cde.log
+echo time.exp.txt
+tail -n 9 cde-root/$oldpath/time.exp.txt | grep real
