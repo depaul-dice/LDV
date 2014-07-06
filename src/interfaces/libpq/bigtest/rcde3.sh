@@ -40,7 +40,7 @@ for i in `seq 3`; do
   time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=single" 9$i $N
 done
 echo time.exp.txt
-tail -n 12 time.exp.txt | grep real
+tail -n 9 time.exp.txt | grep real
 
 
 

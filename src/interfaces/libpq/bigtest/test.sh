@@ -8,17 +8,18 @@ then
   exit
 fi
 
-N=10
+N=5
 
 #==== case 3 ====
 
+echo run3.sh
 for i in `seq $N`; do
   ./run3.sh
 done
 mv time.exp.txt time.exp.ptumode31.txt
 mv time.run.txt time.run.ptumode31.txt
 
-
+echo rcde3.sh
 echo > cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt
 for i in `seq $N`; do
   ./rcde3.sh
@@ -26,7 +27,9 @@ done
 mv cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt time.exp.ptumode32.txt
 mv time.run.txt time.run.ptumode32.txt
 
-#==== case 2 ====
+
+#==== case 0 ====
+echo run0.sh
 for i in `seq $N`; do
   ./run0.sh
 done
@@ -34,6 +37,8 @@ mv time.exp.txt time.exp.origin.txt
 mv time.run.txt time.run.origin.txt
 
 
+#==== case 2 ====
+echo run.sh
 for i in `seq $N`; do
   ./run.sh
 done
@@ -42,6 +47,7 @@ echo > time.exp.txt
 mv time.run.txt time.run.ptumode21.txt
 
 
+echo rcde.sh
 for i in `seq $N`; do
   ./rcde.sh
 done
