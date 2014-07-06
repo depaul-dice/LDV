@@ -31,7 +31,7 @@ cp *.dblog cde-package/cde-root/$oldpath/
 
 export PTU_DB_MODE=32
 export LD_LIBRARY_PATH=../
-N=1000
+N=100
 
 cd cde-package/cde-root/$oldpath
 for i in `seq 3`; do

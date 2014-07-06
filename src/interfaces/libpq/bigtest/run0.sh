@@ -15,17 +15,18 @@ fi
 
 # prepare original database
 cd $PERM
-killall psql
-bin/pg_ctl stop -D data
-rm -rf data
+killall psql 2>/dev/null
+bin/pg_ctl stop -D data 2>/dev/null
+rm -rf data 2>/dev/null
 tar xzf $oldpath/data.startup.tgz
 cd $oldpath
 
 ### start
 export LD_LIBRARY_PATH=$PERM/lib
 unset PTU_DB_REPLAY
+export PTU_DB_MODE=0
 rm *.dblog
 
 time -p -a -o time.run.txt ./exp.sh
 echo time.exp.txt
-tail -n 12 time.exp.txt | grep real
+tail -n 9 time.exp.txt | grep real
