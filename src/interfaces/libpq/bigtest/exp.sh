@@ -1,4 +1,5 @@
 #!/bin/sh
+N=1000
 
 # start perm
 oldpath=`pwd`
@@ -20,7 +21,6 @@ sleep 3
 #./single "host=localhost dbname=single" 100 2>100.log &
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
-N=100
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
 
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 92 $N
