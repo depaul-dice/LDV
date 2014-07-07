@@ -21,6 +21,9 @@ sleep 3
 #./single "host=localhost dbname=single" 100 2>100.log &
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
+# make one db conn then exit (to restore db if needed)
+./single "host=localhost dbname=single" 95 1
+
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
 
 time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 92 $N

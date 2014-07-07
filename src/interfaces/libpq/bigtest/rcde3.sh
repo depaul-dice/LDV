@@ -35,8 +35,9 @@ export LD_LIBRARY_PATH=../
 
 cd cde-package/cde-root/$oldpath
 for i in `seq 3`; do
-  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
-  echo $PTU_DB_REPLAY $N $i
+  id=`expr $i + 1`
+  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $id | tail -n 1`
+  echo $PTU_DB_REPLAY $N $id
   time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=single" 9$i $N
 done
 echo time.exp.txt
