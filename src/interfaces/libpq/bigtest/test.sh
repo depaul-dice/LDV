@@ -1,5 +1,7 @@
 #!/bin/sh
 
+N=5
+
 rm time.exp.txt time.run.txt
 
 if [ "`grep N= exp.sh`" != "`grep N= rcde3.sh`" ]
@@ -8,15 +10,13 @@ then
   exit
 fi
 
-N=5
-
 #==== case 3 ====
 
 echo run3.sh
 for i in `seq $N`; do
   ./run3.sh
 done
-mv time.exp.txt time.exp.ptumode31.txt
+cp time.exp.txt time.exp.ptumode31.txt
 mv time.run.txt time.run.ptumode31.txt
 
 echo rcde3.sh
@@ -46,6 +46,12 @@ cp time.exp.txt time.exp.ptumode21.txt
 echo > time.exp.txt
 mv time.run.txt time.run.ptumode21.txt
 
+
+echo rcdeconn.sh
+for i in `seq ${N}0`; do
+  ./rcdeconn.sh
+done
+mv time.exp.txt time.exp.ptumode22conn.txt
 
 echo rcde.sh
 for i in `seq $N`; do
