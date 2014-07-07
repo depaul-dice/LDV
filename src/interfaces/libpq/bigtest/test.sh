@@ -49,6 +49,12 @@ echo > time.exp.txt
 mv time.run.txt time.run.ptumode21.txt
 
 
+echo rcdeconn.sh
+for i in `seq ${N}0`; do
+  ./rcdeconn.sh
+done
+mv time.exp.txt time.exp.ptumode22conn.txt
+
 echo rcde.sh
 for i in `seq $N`; do
   ./rcde.sh

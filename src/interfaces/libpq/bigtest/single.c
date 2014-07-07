@@ -100,6 +100,8 @@ int main(int argc, char** argv) {
         		sprintf(sql, "BYPASS SELECT PROVENANCE sum(value) FROM tbl1 WHERE value < %d", counter);
         		doSQL ( conn, sql );
         	}
+        } else if (mode == 5) {
+        	// do nothing, this is to test PQconnectdb (restore db)
         }
 
     } else
