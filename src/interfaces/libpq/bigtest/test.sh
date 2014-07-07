@@ -1,5 +1,7 @@
 #!/bin/sh
 
+N=5
+
 rm time.exp.txt time.run.txt
 
 if [ "`grep N= exp.sh`" != "`grep N= rcde3.sh`" ]
@@ -8,24 +10,24 @@ then
   exit
 fi
 
-N=5
-
 #==== case 3 ====
 
 echo run3.sh
 for i in `seq $N`; do
   ./run3.sh
 done
-mv time.exp.txt time.exp.ptumode31.txt
+cp time.exp.txt time.exp.ptumode31.txt
 mv time.run.txt time.run.ptumode31.txt
+rm time.exp.txt time.run.txt
 
 echo rcde3.sh
-echo > cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt
+rm cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt
 for i in `seq $N`; do
   ./rcde3.sh
 done
 mv cde-package/cde-root/home/quanpt/assi/perm/src/interfaces/libpq/bigtest/time.exp.txt time.exp.ptumode32.txt
 mv time.run.txt time.run.ptumode32.txt
+rm time.exp.txt time.run.txt
 
 
 #==== case 0 ====
