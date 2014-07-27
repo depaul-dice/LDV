@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
           doSQL ( conn, "UPDATE tbl1 SET value=60 WHERE value = 101;");
           doSQL ( conn, "DELETE FROM tbl1 WHERE value = 3;");
         } else {
-          doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 2" );
+          doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 40" );
           doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
           // doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
           // doSQL ( conn, "SELECT * FROM tbl1" );

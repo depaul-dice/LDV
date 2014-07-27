@@ -1164,12 +1164,46 @@ void prv_modifyTableList(PGconn* conn, char* tablelist) {
 	} while (true);
 }
 
-void prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
-		char* provquery);
-void prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
-		char* provquery) {
-	char *space, *comma, *view, tablename[STR_LEN];
+void prv_extractInsertIds(PGconn* conn, char* tablename, char* view, char* insertIds, int *useDB);
+void prv_extractInsertIds(PGconn* conn, char* tablename, char* view, char* insertIds, int *useDB) {
+	char sql[STR_LONG_LEN];
+	int r, nrows;
+	PGresult *result;
+	int restatus;
+	sprintf(sql,
+			"SELECT DISTINCT prov_public_%s___prov__p FROM %s",
+			tablename, view);
+	result = PQexecSingle(conn, sql);
+	restatus = PQresultStatus(result);
+	if (restatus == PGRES_TUPLES_OK) {
+		nrows = PQntuples ( result );
+		for ( r = 0; r < nrows; r++ ) {
+			if (strlen(PQgetvalue ( result, r, 0 )) < 32) {
+				if (insertIds[0] != 0)
+					strcat(insertIds, ".");
+				strcat(insertIds, PQgetvalue ( result, r, 0 ));
+				strcat(insertIds, ".1");
+			} else if (!*useDB) {
+				if (insertIds[0] != 0)
+					strcat(insertIds, ".");
+				strcat(insertIds, "original.database"); // point to existing tuples
+				*useDB = 1;
+			}
+		}
+		PQclear(result);
+	} else {
+		printf("status is %s\n", PQresStatus(restatus));
+	}
+}
 
+char* prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
+		char* provquery);
+char* prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
+		char* provquery) {
+	char *space, *comma, *view, tablename[STR_LEN], *insertids;
+	int useDB = 0;
+	insertids = malloc(STR_LONG_LEN);
+	insertids[0] = 0;
 	view = prv_createView(conn, provquery);
 	do {
 		while (*tablelist == ' ') tablelist++;
@@ -1186,12 +1220,15 @@ void prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
 		tablename[space - tablelist] = 0;
 		prv_storeTable(conn, tablename);
 		prv_extractTuple(conn, tablename, view);
+		prv_extractInsertIds(conn, tablename, view, insertids, &useDB);
 		if (comma == NULL)
 			break;
 		else
 			tablelist = comma + 1;
 	} while (true);
 	prv_dropView(conn, view);
+	// fprintf(stderr, "provq: %s --- %s\n", provquery, insertids);
+	return insertids;
 }
 
 
@@ -2277,7 +2314,7 @@ PQexecSingle(PGconn *conn, const char *query)
 PGresult *
 PQexec(PGconn *conn, const char *query)
 {
-	char queryid[40];
+	char queryid[40], *insertids;
 	uint64_t timeus;
 	PGresult *result;
 	int type = -1;
@@ -2300,7 +2337,9 @@ PQexec(PGconn *conn, const char *query)
 			result = PQexecSingle(conn, query);
 		} else if (type == SELECT_STMT) {
 			prv_modifyTableList(conn, tablename);
-			prv_extractTuplesFromTable(conn, tablename, prov_query);
+			insertids = prv_extractTuplesFromTable(conn, tablename, prov_query);
+			prv_storeSelect(queryid, insertids, timeus, query);
+			if (insertids != NULL) free(insertids);
 //			result = PQexecSingle(conn, prov_query);
 //			if (PQresultStatus(result) == PGRES_TUPLES_OK) { // SELECT query
 //				//~ prv_storeSelect(queryid, version, timeus, query);
