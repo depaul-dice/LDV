@@ -75,11 +75,32 @@ void fakeio(char* pattern, int seed) {
         fclose(fd);
 }
 
+void fakeread(int seed) {
+	char path[100];
+	FILE *fd;
+	sprintf(path, "io/input.%d.txt", seed);
+	printf("read: %s\n", path);
+	fd = fopen(path, "r");
+	if (fd != NULL)
+		fclose(fd);
+}
+
+void fakewrite(int seed) {
+	char path[100];
+	FILE *fd;
+	sprintf(path, "io/output.%d.txt", seed);
+	printf("write: %s\n", path);
+	fd = fopen(path, "w");
+	if (fd != NULL)
+		fclose(fd);
+}
+
 int main(int argc, char** argv) {
     PGconn *conn;
     const char *conninfo;     // argv[1]
     int seed = MYMAGICN;      // argv[2]
     char insertmode = 1;       // true if seed param < 0
+    FILE *fd;
     
     if (argc > 1)
       conninfo = argv[1];
@@ -94,7 +115,7 @@ int main(int argc, char** argv) {
     } else 
       srand(seed);
       
-    fakeio("io/%s.before.%d.txt", seed);
+    // fakeio("io/%s.before.%d.txt", seed);
 
     if ( PQstatus ( conn ) == CONNECTION_OK ) {
         //printf ( "connection made\n" );
@@ -105,6 +126,7 @@ int main(int argc, char** argv) {
           }
           sleep(1); // everyone wait for the table to be created
           // insert randome stuff
+          fakeread(seed);
           insert(conn);
           insert(conn);
           doSQL ( conn, "UPDATE tbl1 SET value=60 WHERE value = 101;");
@@ -112,6 +134,7 @@ int main(int argc, char** argv) {
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 40" );
           doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
+          fakewrite(seed);
           // doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
           // doSQL ( conn, "SELECT * FROM tbl1" );
           // doSQL ( conn, "select sum(tbl1.value) from tbl2 join tbl1 on tbl1.id=tbl2.id where tbl2.value < 50;");
@@ -119,7 +142,7 @@ int main(int argc, char** argv) {
     } else
         printf ( "connection failed %s\n", PQerrorMessage ( conn ) );
     
-    fakeio("io/%s.after.%d.txt", seed);
+    // fakeio("io/%s.after.%d.txt", seed);
 
     PQfinish ( conn );
     return EXIT_SUCCESS;
