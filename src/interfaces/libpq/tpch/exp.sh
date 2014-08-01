@@ -1,5 +1,5 @@
 #!/bin/sh
-N=100
+N=2
 
 # start perm
 oldpath=`pwd`
@@ -22,11 +22,11 @@ sleep 3
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
 # make one db conn then exit (to restore db if needed)
-./single "host=localhost" 95 1
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
 
 #~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
 
-time -p -a -o time.exp.txt ./single "host=localhost" 92 $N
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 $N
 
 #~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 $N
 

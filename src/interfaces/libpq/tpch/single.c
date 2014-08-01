@@ -18,9 +18,9 @@ void doSQL ( PGconn *conn, char *command ) {
     //~ printf("result message: %s\n", PQresultErrorMessage(result));
     switch ( PQresultStatus ( result ) ) {
     case PGRES_TUPLES_OK: {
-        int r, n;
-        int nrows = PQntuples ( result );
-        int nfields = PQnfields ( result );
+//        int r, n;
+//        int nrows = PQntuples ( result );
+//        int nfields = PQnfields ( result );
 //        printf ( "number of rows returned = %d\n", nrows );
 //        printf ( "number of fields returned = %d\n", nfields );
 //
@@ -90,8 +90,8 @@ int main(int argc, char** argv) {
         } else if (mode == 2) {
         	printf("select mode\n");
         	sqlp = "select 	l_returnflag, 	l_linestatus, 	sum(l_quantity) as sum_qty, 	sum(l_extendedprice) as sum_base_price, 	sum(l_extendedprice * (1 - l_discount)) as sum_disc_price, 	sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge, 	avg(l_quantity) as avg_qty, 	avg(l_extendedprice) as avg_price, 	avg(l_discount) as avg_disc, 	count(*) as count_order from 	lineitem1 where 	l_shipdate <= date '1998-12-01' - interval '112 day' group by 	l_returnflag, 	l_linestatus order by 	l_returnflag, 	l_linestatus;";
-			doSQL ( conn, sqlp );
-	//          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
+        	for (; counter > 0; counter--)
+        		doSQL ( conn, sqlp );
         } else if (mode == 3) {
         	printf("update mode\n");
         	for (; counter > 0; counter--)

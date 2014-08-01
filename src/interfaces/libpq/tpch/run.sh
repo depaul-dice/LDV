@@ -19,7 +19,7 @@ cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
 rm -rf data 2>/dev/null
-tar xzf $oldpath/data.startup.tgz
+tar xzf $oldpath/data.tpch.001.tgz
 cd $oldpath
 
 ### start
