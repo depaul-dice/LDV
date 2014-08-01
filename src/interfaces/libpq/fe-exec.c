@@ -2317,7 +2317,7 @@ PQexec(PGconn *conn, const char *query)
 	char queryid[40], *insertids;
 	uint64_t timeus;
 	PGresult *result;
-	int type = -1;
+	int type = -1, n, i;
 	char tablename[256];
 	char *prov_query;
 
@@ -2327,6 +2327,15 @@ PQexec(PGconn *conn, const char *query)
 	prov_query = prv_createQuery(query, queryid, &timeus, &type, tablename);
 	if (prov_query != NULL) {
 		logdb("db: %d %s %s\n", type, tablename, prov_query);
+		// fixed tab and space in table list
+		n = 0; i = 0;
+		while (tablename[n]!=0) {
+			if (tablename[n]=='\t' || tablename[n]==' ') {
+				n++;
+			} else
+				tablename[i++] = tablename[n++];
+		}
+		tablename[i] = 0;
 		if (type == INSERT_STMT) {
 			prv_modifyTable(conn, tablename);
 			result = PQexecSingle(conn, prov_query);

@@ -22,13 +22,13 @@ sleep 3
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
 # make one db conn then exit (to restore db if needed)
-./single "host=localhost dbname=single" 95 1
+./single "host=localhost" 95 1
 
-time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
+#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
 
-time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 92 $N
+time -p -a -o time.exp.txt ./single "host=localhost" 92 $N
 
-time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 $N
+#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 $N
 
 #time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 94 $N
 
