@@ -25,7 +25,7 @@ cd $oldpath
 ### start
 export PTU_DBSESSION_ID=0
 export PTU_DB_MODE=0
-export LD_LIBRARY_PATH=../
+export LD_LIBRARY_PATH=$PERM/lib
 unset PTU_DB_REPLAY
 rm *.dblog 2>/dev/null
 

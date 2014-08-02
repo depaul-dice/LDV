@@ -129,6 +129,18 @@ void doselect(PGconn *conn, int tpchquery) {
                 "    s_name,"
                 "    p_partkey"
                 " limit 100;";
+        sqlp = "select"
+                "    s_acctbal,"
+                "    s_name,"
+                "    p_partkey,"
+                "    p_mfgr,"
+                "    s_address,"
+                "    s_phone,"
+                "    s_comment"
+        		" from part, supplier, partsupp"
+        		" where"
+                "    p_partkey = ps_partkey"
+                "    and s_suppkey = ps_suppkey";
         break;
     case 3:
         sqlp = "select"

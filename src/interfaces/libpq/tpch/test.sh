@@ -31,9 +31,9 @@ rm time.exp.txt time.run.txt
 
 
 #==== case 0 ====
-echo run0.sh
+echo normal.sh
 for i in `seq $N`; do
-  ./run0.sh
+  ./normal.sh
 done
 mv time.exp.txt time.exp.origin.txt
 mv time.run.txt time.run.origin.txt
