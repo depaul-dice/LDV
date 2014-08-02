@@ -673,7 +673,7 @@ pqSaveParameterStatus(PGconn *conn, const char *name, const char *value)
  */
 
 #define STR_LEN 50
-#define STR_LONG_LEN 102400
+#define STR_LONG_LEN 1024000
 #define HASH_LEN 10
 
 typedef long long sll; // signed long long
@@ -706,7 +706,7 @@ FILE *f_out_dblog = NULL, *f_in_dblog = NULL;
  * e.g: DB_MODE=21 to capture main case of the paper
  *              22 to rerun it
  */
-char DB_MODE = 21;
+char DB_MODE = 0;
 volatile char DB_NW_RECENTLY_WRITEN = 0;
 sll pkg_counter = 0;
 pid_t pid;
@@ -1095,6 +1095,7 @@ void prv_modifyTable(PGconn* conn, char* tablename) {
 	// select column_name, data_type from information_schema.columns where table_name='tbl1';
 	char sql[STR_LONG_LEN];
 	PGresult *result;
+	int restatus;
 
 	// check again hast table if table is already been modified
 	if (prv_hashContains(&dict_tblmod, tablename))
@@ -1104,14 +1105,28 @@ void prv_modifyTable(PGconn* conn, char* tablename) {
 
 	logdb("mod table: %s\n", tablename);
 	// ALTER TABLE tbl1 ADD COLUMN _prov_p varchar(40), ADD COLUMN _prov_v integer, ADD COLUMN _prov_rowid varchar(32);
+//	sprintf(sql, "ALTER TABLE %s "
+//			"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
+//			"ADD COLUMN _prov_insertedby integer DEFAULT 0, "
+//			"ADD COLUMN _prov_v timestamp DEFAULT now(), "
+//			"ADD COLUMN _prov_rowid varchar(32) DEFAULT md5(random()::text)",
+//			"ADD UNIQUE (_prov_rowid);",
+//			tablename);
+//	result = PQexecSingle(conn, sql);
 	sprintf(sql, "ALTER TABLE %s "
-			"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
-			"ADD COLUMN _prov_insertedby integer DEFAULT 0, "
-			"ADD COLUMN _prov_v timestamp DEFAULT now(), "
-			"ADD COLUMN _prov_rowid varchar(32) DEFAULT md5(random()::text),"
-			"ADD UNIQUE (_prov_rowid);",
-			tablename);
+				"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
+				"ADD COLUMN _prov_insertedby integer DEFAULT 0, "
+				"ADD COLUMN _prov_v timestamp DEFAULT now(), "
+				"ADD COLUMN _prov_rowid varchar(32);",
+				tablename);
 	result = PQexecSingle(conn, sql);
+	restatus = PQresultStatus(result);
+	if (restatus == PGRES_COMMAND_OK || restatus == PGRES_TUPLES_OK) {
+		sprintf(sql, "UPDATE %s SET _prov_rowid=OID;", tablename);
+		result = PQexecSingle(conn, sql);
+//		sprintf(sql, "ALTER TABLE %s ADD UNIQUE (_prov_rowid);", tablename);
+//		result = PQexecSingle(conn, sql);
+	}
 	PQclear(result);
 }
 

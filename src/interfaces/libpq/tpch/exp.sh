@@ -1,5 +1,5 @@
 #!/bin/sh
-N=2
+N=100
 
 # start perm
 oldpath=`pwd`
@@ -13,9 +13,11 @@ then
 	fi
 fi
 cd $PERM
-bin/pg_ctl start -D data -l logfile > /dev/null 2>&1
+rm logfile
+bin/pg_ctl start -D data -l logfile
+# > /dev/null 2>&1
 cd $oldpath
-sleep 3
+sleep 6
 
 # start clients
 #./single "host=localhost dbname=single" 100 2>100.log &
@@ -24,13 +26,19 @@ sleep 3
 # make one db conn then exit (to restore db if needed)
 time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
 
-#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 91 $N
+# insert
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 91 $N
 
-time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 $N
+# select heavy
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 1 3
 
-#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 93 $N
+# select light
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 $N 3
 
-#time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 94 $N
+# update
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 93 $N
+
+#time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 94 $N
 
 # stop perm
 cd $PERM

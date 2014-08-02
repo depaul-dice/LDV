@@ -18,8 +18,9 @@ fi
 cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
+killall postgres
 rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.001.tgz
+tar xzf $oldpath/data.tpch.tgz
 cd $oldpath
 
 ### start
@@ -29,9 +30,9 @@ export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
 rm *.dblog 2>/dev/null
 
+N=`grep real time.exp.txt | wc -l`
 time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
-echo time.exp.txt
-tail -n 9 time.exp.txt | grep real
+grep real time.exp.txt | tail -n +$N
 
 ### post-process db for indirect (spawn) links
 cat *.dblog > dblog.txt

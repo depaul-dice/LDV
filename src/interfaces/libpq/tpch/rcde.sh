@@ -31,6 +31,6 @@ export PTU_DB_MODE=22
 
 # real re-run
 cd cde-package
+N=`grep real cde-root/$oldpath/time.exp.txt | wc -l`
 time -p -a -o ../time.run.txt sh cde.log
-echo time.exp.txt
-tail -n 9 cde-root/$oldpath/time.exp.txt | grep real
+grep real cde-root/$oldpath/time.exp.txt | tail -n +$N
