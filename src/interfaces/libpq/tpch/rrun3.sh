@@ -1,4 +1,5 @@
 #!/bin/sh
+N=100
 
 # fake re-run
 cp single query
@@ -27,18 +28,40 @@ fi
 #~ export PTU_DB_REPLAY=dblog.txt
 #~ cp `ls *.dblog | tail -n 1` dblog.txt
 
+
+NC=`grep real time.exp.txt | wc -l`
+NC=`expr $NC + 1`
+
 export PTU_DB_MODE=32
-N=10000
 
-for i in `seq 3`; do
-  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
-  echo $PTU_DB_REPLAY $N $i
-  time -p ./single "host=localhost dbname=single" 9$i $N
-done
+i=1
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# make one db conn then exit (to restore db if needed)
+#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
 
-#~ ./exp.sh
-exit
+i=1
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# insert
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 91 $N
 
-# real re-run
-cd cde-package
-sh cde.log
+i=2
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i $PTU_DB_MODE $PTU_DB_REPLAY $TPCH
+# select heavy
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 1 $TPCH
+
+i=3
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# select light
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 92 $N $TPCH
+
+i=4
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# update
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 93 $N
+
+grep real time.exp.txt | tail -n +$NC

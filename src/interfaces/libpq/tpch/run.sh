@@ -30,9 +30,10 @@ export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
 rm *.dblog 2>/dev/null
 
-N=`grep real time.exp.txt | wc -l`
+NC=`grep real time.exp.txt | wc -l`
+NC=`expr $NC + 1`
 time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
-grep real time.exp.txt | tail -n +$N
+grep real time.exp.txt | tail -n +$NC
 
 ### post-process db for indirect (spawn) links
 cat *.dblog > dblog.txt

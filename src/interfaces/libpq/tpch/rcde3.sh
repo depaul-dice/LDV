@@ -29,19 +29,42 @@ fi
 #~ cp `ls *.dblog | tail -n 1` dblog.txt
 
 cp *.dblog cde-package/cde-root/$oldpath/
+NC=`grep real time.exp.txt | wc -l`
+NC=`expr $NC + 1`
 
 export PTU_DB_MODE=32
-export LD_LIBRARY_PATH=../
+#~ export LD_LIBRARY_PATH=../
 
 cd cde-package/cde-root/$oldpath
-for i in `seq 3`; do
-  id=`expr $i + 1`
-  export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $id | tail -n 1`
-  echo $PTU_DB_REPLAY $N $id
-  time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=single" 9$i $N
-done
-echo time.exp.txt
-tail -n 9 time.exp.txt | grep real
 
+i=1
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# make one db conn then exit (to restore db if needed)
+#~ time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 95 1
 
+i=1
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# insert
+time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 91 $N
 
+i=2
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# select heavy
+time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 92 1 $TPCH
+
+i=3
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# select light
+time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 92 $N $TPCH
+
+i=4
+export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
+echo $PTU_DB_REPLAY $N $i
+# update
+time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 93 $N
+
+grep real time.exp.txt | tail -n +$NC

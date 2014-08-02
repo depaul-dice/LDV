@@ -25,10 +25,11 @@ cd $oldpath
 ### start
 export PTU_DB_REPLAY=dblog.txt
 export PTU_DB_MODE=22
-N=`grep real time.exp.txt | wc -l`
+NC=`grep real time.exp.txt | wc -l`
+NC=`expr $NC + 1`
 #~ ./exp.sh
 ./exp.sh
-grep real time.exp.txt | tail -n +$N
+grep real time.exp.txt | tail -n +$NC
 exit
 
 # real re-run

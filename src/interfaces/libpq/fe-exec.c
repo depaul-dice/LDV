@@ -870,7 +870,7 @@ void prv_restoredb(char *conninfo) {
 		PQfinish(conn);
 
 	} else {
-		// todo
+		printf("no dbname for replay!\n");
 	}
 }
 
@@ -1114,7 +1114,7 @@ void prv_modifyTable(PGconn* conn, char* tablename) {
 //			tablename);
 //	result = PQexecSingle(conn, sql);
 	sprintf(sql, "ALTER TABLE %s "
-				"ADD COLUMN _prov_p varchar(40) DEFAULT md5(random()::text), "
+				"ADD COLUMN _prov_p varchar(40) DEFAULT '0000', "
 				"ADD COLUMN _prov_insertedby integer DEFAULT 0, "
 				"ADD COLUMN _prov_v timestamp DEFAULT now(), "
 				"ADD COLUMN _prov_rowid varchar(32);",
@@ -1676,7 +1676,7 @@ void prv_restore_read(unsigned char *ptr, ssize_t *n, size_t len) {
 	int i = 0;
 //	logdb("prv_restore_read %d\n", len);
 	line = malloc(2*len + 100); // hex format need double memory
-	while (fgets(line, len, f_in_dblog) != NULL) {
+	while (fgets(line, 2*len + 100, f_in_dblog) != NULL) {
 		if (strncmp(line, "prv_store_read", len_st_read) == 0) {
 			start = line;
 			start = strchr(start, '\t') + 1;

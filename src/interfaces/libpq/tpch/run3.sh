@@ -19,7 +19,7 @@ cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
 rm -rf data 2>/dev/null
-tar xzf $oldpath/data.startup.tgz
+tar xzf $oldpath/data.tpch.notpoked.tgz
 cd $oldpath
 
 ### start
@@ -29,9 +29,11 @@ unset PTU_DB_REPLAY
 export LD_LIBRARY_PATH=../
 rm *.dblog
 #~ ./exp.sh
+
+NC=`grep real time.exp.txt | wc -l`
+NC=`expr $NC + 1`
 time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
-echo time.exp.txt
-tail -n 9 time.exp.txt | grep real
+grep real time.exp.txt | tail -n +$NC
 
 # prepare minimal database
 rm -rf cde-package/cde-root/$PERM
