@@ -17,7 +17,7 @@ cd $oldpath
 sleep 3
 
 # make a connection and restore db
-time -p -a -o time.exp.txt ./single "host=localhost dbname=single" 95 1
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
 
 # stop perm
 cd $PERM

@@ -1,6 +1,6 @@
 #!/bin/sh
 N=100
-#~ TPCH=5
+#~ export TPCH=3
 
 # start perm
 oldpath=`pwd`
@@ -25,7 +25,7 @@ sleep 6
 #~ time ./single "host=localhost dbname=single" 99 1000 2>/dev/null &
 
 # make one db conn then exit (to restore db if needed)
-#~ time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
+time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
 
 # insert
 time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 91 $N

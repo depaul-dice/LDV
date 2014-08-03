@@ -41,27 +41,27 @@ i=1
 export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
 echo $PTU_DB_REPLAY $N $i
 # make one db conn then exit (to restore db if needed)
-#~ time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 95 1
+time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 95 1
 
-i=1
+i=2
 export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
 echo $PTU_DB_REPLAY $N $i
 # insert
 time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 91 $N
 
-i=2
+i=3
 export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
 echo $PTU_DB_REPLAY $N $i
 # select heavy
 time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 92 1 $TPCH
 
-i=3
+i=4
 export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
 echo $PTU_DB_REPLAY $N $i
 # select light
 time -p -a -o time.exp.txt $oldpath/cde-package/cde-exec ./single "host=localhost dbname=quanpt" 92 $N $TPCH
 
-i=4
+i=5
 export PTU_DB_REPLAY=`ls 1001.*.dblog | sort -n | head -n $i | tail -n 1`
 echo $PTU_DB_REPLAY $N $i
 # update

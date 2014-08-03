@@ -64,7 +64,7 @@ void insert(PGconn *conn) {
 
 void update(PGconn *conn);
 void update(PGconn *conn) {
-  static char sqlStr[1000];
+	static char sqlStr[1000];
     sprintf(sqlStr, "UPDATE orders SET o_comment=md5((random())::text) WHERE o_orderkey=%d", rand() % MYMAGICN);
     doSQL(conn, sqlStr);
 }
@@ -129,18 +129,18 @@ void doselect(PGconn *conn, int tpchquery) {
                 "    s_name,"
                 "    p_partkey"
                 " limit 100;";
-        sqlp = "select"
-                "    s_acctbal,"
-                "    s_name,"
-                "    p_partkey,"
-                "    p_mfgr,"
-                "    s_address,"
-                "    s_phone,"
-                "    s_comment"
-        		" from part, supplier, partsupp"
-        		" where"
-                "    p_partkey = ps_partkey"
-                "    and s_suppkey = ps_suppkey";
+//        sqlp = "select"
+//                "    s_acctbal,"
+//                "    s_name,"
+//                "    p_partkey,"
+//                "    p_mfgr,"
+//                "    s_address,"
+//                "    s_phone,"
+//                "    s_comment"
+//        		" from part, supplier, partsupp"
+//        		" where"
+//                "    p_partkey = ps_partkey"
+//                "    and s_suppkey = ps_suppkey";
         break;
     case 3:
         sqlp = "select"
@@ -358,15 +358,110 @@ void doselect(PGconn *conn, int tpchquery) {
 				"	p_type,"
 				"	p_size;";
 		break;
+	case 17:
+		sqlp = "select"
+				"	sum(l_extendedprice) / 7.0 as avg_yearly"
+				" from"
+				"	lineitem1,"
+				"	part"
+				" where"
+				"	p_partkey = l_partkey"
+				"	and p_brand = 'Brand#54'"
+				"	and p_container = 'LG BAG'"
+				"	and l_quantity < ("
+				"		select"
+				"			0.2 * avg(l_quantity)"
+				"		from"
+				"			lineitem1"
+				"		where"
+				"			l_partkey = p_partkey"
+				"	);";
+		break;
+	case 18:
+		sqlp = "select"
+				"	c_name,"
+				"	c_custkey,"
+				"	o_orderkey,"
+				"	o_orderdate,"
+				"	o_totalprice,"
+				"	sum(l_quantity)"
+				" from"
+				"	customer,"
+				"	orders,"
+				"	lineitem1"
+				" where"
+				"	o_orderkey in ("
+				"		select"
+				"			l_orderkey"
+				"		from"
+				"			lineitem1"
+				"		group by"
+				"			l_orderkey having"
+				"				sum(l_quantity) > 314"
+				"	)"
+				"	and c_custkey = o_custkey"
+				"	and o_orderkey = l_orderkey"
+				" group by"
+				"	c_name,"
+				"	c_custkey,"
+				"	o_orderkey,"
+				"	o_orderdate,"
+				"	o_totalprice"
+				" order by"
+				"	o_totalprice desc,"
+				"	o_orderdate;";
+		break;
+	case 19:
+		sqlp = "select"
+				"	sum(l_extendedprice* (1 - l_discount)) as revenue"
+				" from"
+				"	lineitem1,"
+				"	part"
+				" where"
+				"	("
+				"		p_partkey = l_partkey"
+				"		and p_brand = 'Brand#23'"
+				"		and p_container in ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG')"
+				"		and l_quantity >= 5 and l_quantity <= 5 + 10"
+				"		and p_size between 1 and 5"
+				"		and l_shipmode in ('AIR', 'AIR REG')"
+				"		and l_shipinstruct = 'DELIVER IN PERSON'"
+				"	)"
+				"	or"
+				"	("
+				"		p_partkey = l_partkey"
+				"		and p_brand = 'Brand#15'"
+				"		and p_container in ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK')"
+				"		and l_quantity >= 14 and l_quantity <= 14 + 10"
+				"		and p_size between 1 and 10"
+				"		and l_shipmode in ('AIR', 'AIR REG')"
+				"		and l_shipinstruct = 'DELIVER IN PERSON'"
+				"	)"
+				"	or"
+				"	("
+				"		p_partkey = l_partkey"
+				"		and p_brand = 'Brand#44'"
+				"		and p_container in ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG')"
+				"		and l_quantity >= 28 and l_quantity <= 28 + 10"
+				"		and p_size between 1 and 15"
+				"		and l_shipmode in ('AIR', 'AIR REG')"
+				"		and l_shipinstruct = 'DELIVER IN PERSON'"
+				"	);";
+		break;
+	case 20:
+	case 21:
+	case 22:
+		sqlp = NULL;
+		break;
     default:
-            sqlp = NULL;
-            break;
+		sqlp = NULL;
+		break;
     }
 
     if (sqlp != NULL)
         doSQL(conn, sqlp);
     else
-        printf("unsupport sql query\n");
+        printf("UNsupported sql query %d\n", tpchquery);
 }
 
 void poke(PGconn *conn) {
