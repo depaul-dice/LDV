@@ -23,6 +23,7 @@ sleep 3
 
 # start query
 sleep 6 && ./query "host=localhost dbname=single" 0
+#sleep 6 && gdb ./query
 
 # stop perm
 sleep 1

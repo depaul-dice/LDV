@@ -1148,7 +1148,7 @@ char* prv_createView(PGconn* conn, char* prov_query) {
 
 void prv_dropView(PGconn* conn, char* view);
 void prv_dropView(PGconn* conn, char* view) {
-	char sql[STR_LEN];
+	char sql[STR_LONG_LEN];
 	sprintf(sql, "DROP VIEW IF EXISTS %s", view);
 //	PQclear(PQexecSingle(conn, sql));
 	PQexecSingle(conn, sql);
@@ -1242,6 +1242,7 @@ char* prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
 			tablelist = comma + 1;
 	} while (true);
 	prv_dropView(conn, view);
+	if (view != NULL) free(view);
 	// fprintf(stderr, "provq: %s --- %s\n", provquery, insertids);
 	return insertids;
 }
