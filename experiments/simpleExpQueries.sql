@@ -14,8 +14,20 @@ WHERE l_suppkey BETWEEN 1 AND 100;
 -- SIMPLE SJ query
 -- add a join into the mix
 -- slightly more complex query
-SELECT *
-FROM lineitem l
+-- we want order comments and lineitem comments for orders from certain customers to be able to apply some mining techniques to that
+-- we can effect the selectivity by changing the number of leading 0's
+SELECT o_comment, l_comment
+FROM lineitem l, orders o, customer c
+WHERE l.l_orderkey = o.o_orderkey 
+      AND o.o_custkey = c.c_custkey
+  AND c.c_name LIKE '%000000%';
+
+-- to check selectivity
+SELECT count(*) 
+FROM lineitem l, orders o, customer c
+WHERE l.l_orderkey = o.o_orderkey 
+      AND o.o_custkey = c.c_custkey
+  AND c.c_name LIKE '%000000%';
 
 
 -- Aggregation over selection
