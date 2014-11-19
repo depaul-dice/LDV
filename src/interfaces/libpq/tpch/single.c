@@ -53,13 +53,13 @@ void insert(PGconn *conn) {
         doSQL(conn, sqlStr);
     }
     fclose(f);
-
+/*
     f = fopen("lineitem.tbl", "r");
     while (fgets(line, 900, f)) {
-        sprintf(sqlStr, "INSERT INTO lineitem1 values(%s);", line);
+        sprintf(sqlStr, "INSERT INTO lineitem values(%s);", line);
         doSQL(conn, sqlStr);
     }
-    fclose(f);
+    fclose(f); */
 }
 
 void update(PGconn *conn);
@@ -79,7 +79,7 @@ void doselect(PGconn *conn, int tpchquery) {
             "    sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge, "
             "    avg(l_quantity) as avg_qty,     avg(l_extendedprice) as avg_price, "
             "    avg(l_discount) as avg_disc,     count(*) as count_order "
-            "from     lineitem1 where "
+            "from     lineitem where "
             "    l_shipdate <= date '1998-12-01' - interval '112 day' "
             "group by     l_returnflag,     l_linestatus "
             "order by     l_returnflag,     l_linestatus;";
@@ -151,7 +151,7 @@ void doselect(PGconn *conn, int tpchquery) {
                 " from"
                 "    customer,"
                 "    orders,"
-                "    lineitem1"
+                "    lineitem"
                 " where"
                 "    c_mktsegment = 'HOUSEHOLD'"
                 "    and c_custkey = o_custkey"
@@ -177,7 +177,7 @@ void doselect(PGconn *conn, int tpchquery) {
                 " from"
                 "    customer,"
                 "    orders,"
-                "    lineitem1,"
+                "    lineitem,"
                 "    supplier,"
                 "    nation,"
                 "    region"
@@ -200,7 +200,7 @@ void doselect(PGconn *conn, int tpchquery) {
         sqlp = "select"
                 "    sum(l_extendedprice * l_discount) as revenue"
                 " from"
-                "    lineitem1"
+                "    lineitem"
                 " where"
                 "    l_shipdate >= date '1994-01-01'"
                 "    and l_shipdate < date '1994-01-01' + interval '1 year'"
@@ -225,7 +225,7 @@ void doselect(PGconn *conn, int tpchquery) {
                 " from"
                 "    customer,"
                 "    orders,"
-                "    lineitem1,"
+                "    lineitem,"
                 "    nation"
                 " where"
                 "    c_custkey = o_custkey"
@@ -292,7 +292,7 @@ void doselect(PGconn *conn, int tpchquery) {
                 "    end) as low_line_count"
                 " from"
                 "    orders,"
-                "    lineitem1"
+                "    lineitem"
                 " where"
                 "    o_orderkey = l_orderkey"
                 "    and l_shipmode in ('FOB', 'TRUCK')"
@@ -316,7 +316,7 @@ void doselect(PGconn *conn, int tpchquery) {
                 "        else 0"
                 "    end) / sum(l_extendedprice * (1 - l_discount)) as promo_revenue"
                 " from"
-                "    lineitem1,"
+                "    lineitem,"
                 "    part"
                 " where"
                 "    l_partkey = p_partkey"
@@ -362,7 +362,7 @@ void doselect(PGconn *conn, int tpchquery) {
 		sqlp = "select"
 				"	sum(l_extendedprice) / 7.0 as avg_yearly"
 				" from"
-				"	lineitem1,"
+				"	lineitem,"
 				"	part"
 				" where"
 				"	p_partkey = l_partkey"
@@ -372,7 +372,7 @@ void doselect(PGconn *conn, int tpchquery) {
 				"		select"
 				"			0.2 * avg(l_quantity)"
 				"		from"
-				"			lineitem1"
+				"			lineitem"
 				"		where"
 				"			l_partkey = p_partkey"
 				"	);";
@@ -388,13 +388,13 @@ void doselect(PGconn *conn, int tpchquery) {
 				" from"
 				"	customer,"
 				"	orders,"
-				"	lineitem1"
+				"	lineitem"
 				" where"
 				"	o_orderkey in ("
 				"		select"
 				"			l_orderkey"
 				"		from"
-				"			lineitem1"
+				"			lineitem"
 				"		group by"
 				"			l_orderkey having"
 				"				sum(l_quantity) > 314"
@@ -415,7 +415,7 @@ void doselect(PGconn *conn, int tpchquery) {
 		sqlp = "select"
 				"	sum(l_extendedprice* (1 - l_discount)) as revenue"
 				" from"
-				"	lineitem1,"
+				"	lineitem,"
 				"	part"
 				" where"
 				"	("
@@ -453,6 +453,32 @@ void doselect(PGconn *conn, int tpchquery) {
 	case 22:
 		sqlp = NULL;
 		break;
+        case 30:
+		sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
+			"FROM lineitem "
+			"WHERE l_suppkey BETWEEN 1 AND 100;";
+		break;
+	case 31:
+		sqlp = "SELECT o_comment, l_comment "
+			"FROM lineitem, orders, customer "
+			"WHERE lineitem.l_orderkey = orders.o_orderkey "
+			"      AND orders.o_custkey = customer.c_custkey "
+			"  AND customer.c_name LIKE '%000000%';";
+		break;
+	case 32:
+		sqlp = 	"SELECT count(*) "
+			"FROM lineitem, orders, customer "
+			"WHERE lineitem.l_orderkey = orders.o_orderkey "
+			"      AND orders.o_custkey = customer.c_custkey "
+			"  AND customer.c_name LIKE '%000000%';";
+		break;
+	case 33:
+		sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
+			"FROM lineitem, orders "
+			"WHERE lineitem.l_orderkey = orders.o_orderkey "
+			"	  AND l_suppkey BETWEEN 1 AND 100 "
+			"GROUP BY o_orderkey";
+		break;
     default:
 		sqlp = NULL;
 		break;
@@ -466,7 +492,7 @@ void doselect(PGconn *conn, int tpchquery) {
 
 void poke(PGconn *conn) {
     doSQL ( conn, "select * from customer where 0 = 1;" );
-    doSQL ( conn, "select * from lineitem1 where 0 = 1;" );
+    doSQL ( conn, "select * from lineitem where 0 = 1;" );
     doSQL ( conn, "select * from nation where 0 = 1;" );
     doSQL ( conn, "select * from orders where 0 = 1;" );
     doSQL ( conn, "select * from part where 0 = 1;" );

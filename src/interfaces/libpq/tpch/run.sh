@@ -17,10 +17,10 @@ fi
 # prepare original database
 cd $PERM
 killall psql 2>/dev/null
-bin/pg_ctl stop -D data 2>/dev/null
+bin/pg_ctl stop 2>/dev/null
 killall postgres
-rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.tgz
+rm -rf $PGDATA 2>/dev/null
+cp -r $PGDATA.std $PGDATA
 cd $oldpath
 
 ### start
@@ -32,7 +32,7 @@ rm *.dblog 2>/dev/null
 
 NC=`grep real time.exp.txt | wc -l`
 NC=`expr $NC + 1`
-time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
+time -p -a -o time.run.txt $PTUHOME/ptu $@ ./exp.sh
 grep real time.exp.txt | tail -n +$NC
 
 ### post-process db for indirect (spawn) links
@@ -41,4 +41,4 @@ ln dblog.txt cde-package/cde-root/
 #~ cat 100.log | python insertdb.py
 #~ cat 99.log | python insertdb.py
 #~ cat 0.log | python insertdb.py
-#~/assi/cde/scripts/db2timeline.py -f cde-package/provenance.cde-root.1.log -d gv1 >/dev/null 2>&1
+#~ $PTUHOME/scripts/db2timeline.py -f cde-package/provenance.cde-root.1.log -d gv1 >/dev/null 2>&1

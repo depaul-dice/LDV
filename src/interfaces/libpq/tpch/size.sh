@@ -4,7 +4,7 @@ filename=testsize.txt
 rm $filename time*.txt
 mkdir -p sizepkg
 
-for i in `seq 22`; do 
+for i in `seq 30 33`; do 
   export TPCH=$i
   
   rm *.dblog dblog.txt
@@ -12,7 +12,7 @@ for i in `seq 22`; do
   tar czf size.run2.q$i.tgz cde-package *.dblog dblog*
   mv size.run2.q$i.tgz sizepkg/
   echo run2.q$i | tee -a $filename
-  du -s cde-package/cde-root/home/quanpt/myapps/perm/data cde-package/ >> $filename
+  du -s cde-package/cde-root/$PQDATA cde-package/ >> $filename
   wc -c *.dblog | grep total >> $filename
   echo "===" >> $filename
   
@@ -21,7 +21,7 @@ for i in `seq 22`; do
   tar czf size.run3.q$i.tgz cde-package *.dblog dblog*
   mv size.run3.q$i.tgz sizepkg/
   echo run3.q$i | tee -a $filename
-  du -s cde-package/cde-root/home/quanpt/myapps/perm/data cde-package/ >> $filename
+  du -s cde-package/cde-root/$PQDATA cde-package/ >> $filename
   wc -c *.dblog | grep total >> $filename
   echo "===" >> $filename
 done

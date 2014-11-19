@@ -18,8 +18,8 @@ cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
 killall postgres
-rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.tgz
+rm -rf $PGDATA 2>/dev/null
+cp -r $PGDATA.std $PGDATA
 cd $oldpath
 
 ### start

@@ -1,5 +1,5 @@
 #!/bin/sh
-N=100
+N=10
 
 # fake re-run
 cp single query

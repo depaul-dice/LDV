@@ -13,10 +13,9 @@ then
 fi
 
 # prepare minimal database
-cd cde-package/cde-root/$PERM
-bin/pg_ctl stop -D data >/dev/null 2>&1
-rm -rf data
-$PERM/bin/initdb -D data >/dev/null 2>&1
+cde-package/cde-root/$PERM/bin/pg_ctl stop -D cde-package/cde-root/$PGDATA >/dev/null 2>&1
+rm -rf cde-package/cde-root/$PGDATA
+$PERM/bin/initdb cde-package/cde-root/$PGDATA >/dev/null 2>&1
 cd $oldpath
 
 ####

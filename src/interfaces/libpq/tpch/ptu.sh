@@ -19,8 +19,8 @@ cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
 killall postgres
-rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.notpoked.tgz
+rm -rf $PGDATA 2>/dev/null
+cp -r $PGDATA.std $PGDATA
 cd $oldpath
 
 ### start
@@ -32,7 +32,7 @@ rm *.dblog 2>/dev/null
 
 NC=`grep real time.exp.txt | wc -l`
 NC=`expr $NC + 1`
-time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
+time -p -a -o time.run.txt $PTUHOME/ptu $@ ./exp.sh
 grep real time.exp.txt | tail -n +$NC
 
 ### post-process db for indirect (spawn) links

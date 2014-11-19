@@ -17,9 +17,9 @@ fi
 # prepare original database
 cd $PERM
 killall psql 2>/dev/null
-bin/pg_ctl stop -D data 2>/dev/null
-rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.notpoked.tgz
+bin/pg_ctl stop 2>/dev/null
+rm -rf $PGDATA 2>/dev/null
+cp -r $PGDATA.std $PGDATA
 cd $oldpath
 
 ### start
@@ -32,7 +32,7 @@ rm *.dblog
 
 NC=`grep real time.exp.txt | wc -l`
 NC=`expr $NC + 1`
-time -p -a -o time.run.txt ~/assi/cde/ptu $@ ./exp.sh
+time -p -a -o time.run.txt $PTUHOME/ptu $@ ./exp.sh
 grep real time.exp.txt | tail -n +$NC
 
 # prepare minimal database

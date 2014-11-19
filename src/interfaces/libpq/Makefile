@@ -70,6 +70,7 @@ all: def-files $(srcdir)/libpq.rc all-lib
 	$(MAKE) -C test $@
 	$(MAKE) -C bigtest $@
 	$(MAKE) -C tpch $@
+	$(MAKE) -C tpch1g/code $@
 
 # Shared library stuff
 include $(top_srcdir)/src/Makefile.shlib
