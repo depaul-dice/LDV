@@ -4,7 +4,7 @@ filename=testsize.txt
 rm $filename time*.txt
 mkdir -p sizepkg
 
-for i in `seq 30 33`; do 
+for i in `seq 30 45`; do 
   export TPCH=$i
   
   rm *.dblog dblog.txt

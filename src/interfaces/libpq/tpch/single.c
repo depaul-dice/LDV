@@ -453,32 +453,122 @@ void doselect(PGconn *conn, int tpchquery) {
 	case 22:
 		sqlp = NULL;
 		break;
-        case 30:
+    case 30:
 		sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
 			"FROM lineitem "
-			"WHERE l_suppkey BETWEEN 1 AND 100;";
+			"WHERE l_suppkey BETWEEN 1 AND 10;";
 		break;
-	case 31:
+    case 31:
+        sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
+            "FROM lineitem "
+            "WHERE l_suppkey BETWEEN 1 AND 20;";
+        break;
+    case 32:
+        sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
+            "FROM lineitem "
+            "WHERE l_suppkey BETWEEN 1 AND 50;";
+        break;
+    case 33:
+        sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
+            "FROM lineitem "
+            "WHERE l_suppkey BETWEEN 1 AND 100;";
+        break;
+    case 34:
+        sqlp = "SELECT l_quantity, l_partkey, l_extendedprice,  l_shipdate , l_receiptdate "
+            "FROM lineitem "
+            "WHERE l_suppkey BETWEEN 1 AND 250;";
+        break;
+    case 35:
 		sqlp = "SELECT o_comment, l_comment "
 			"FROM lineitem, orders, customer "
 			"WHERE lineitem.l_orderkey = orders.o_orderkey "
 			"      AND orders.o_custkey = customer.c_custkey "
-			"  AND customer.c_name LIKE '%000000%';";
+			"  AND customer.c_name LIKE '%0000000%';";
 		break;
-	case 32:
+    case 36:
+        sqlp = "SELECT o_comment, l_comment "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%000000%';";
+        break;
+    case 37:
+        sqlp = "SELECT o_comment, l_comment "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%00000%';";
+        break;
+    case 38:
+        sqlp = "SELECT o_comment, l_comment "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%0000%';";
+        break;
+	case 39:
 		sqlp = 	"SELECT count(*) "
 			"FROM lineitem, orders, customer "
 			"WHERE lineitem.l_orderkey = orders.o_orderkey "
 			"      AND orders.o_custkey = customer.c_custkey "
-			"  AND customer.c_name LIKE '%000000%';";
+			"  AND customer.c_name LIKE '%0000000%';";
 		break;
-	case 33:
+    case 40:
+        sqlp =  "SELECT count(*) "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%000000%';";
+        break;
+    case 41:
+        sqlp =  "SELECT count(*) "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%00000%';";
+        break;
+    case 42:
+        sqlp =  "SELECT count(*) "
+            "FROM lineitem, orders, customer "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "      AND orders.o_custkey = customer.c_custkey "
+            "  AND customer.c_name LIKE '%0000%';";
+        break;
+	case 43:
 		sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
 			"FROM lineitem, orders "
 			"WHERE lineitem.l_orderkey = orders.o_orderkey "
-			"	  AND l_suppkey BETWEEN 1 AND 100 "
+			"	  AND l_suppkey BETWEEN 1 AND 10 "
 			"GROUP BY o_orderkey";
 		break;
+    case 44:
+        sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
+            "FROM lineitem, orders "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "     AND l_suppkey BETWEEN 1 AND 20 "
+            "GROUP BY o_orderkey";
+        break;
+    case 45:
+        sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
+            "FROM lineitem, orders "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "     AND l_suppkey BETWEEN 1 AND 50 "
+            "GROUP BY o_orderkey";
+        break;
+    case 46:
+        sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
+            "FROM lineitem, orders "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "     AND l_suppkey BETWEEN 1 AND 100 "
+            "GROUP BY o_orderkey";
+        break;
+    case 47:
+        sqlp = "SELECT o_orderkey, AVG(l_quantity) AS avgQ "
+            "FROM lineitem, orders "
+            "WHERE lineitem.l_orderkey = orders.o_orderkey "
+            "     AND l_suppkey BETWEEN 1 AND 250 "
+            "GROUP BY o_orderkey";
+        break;
     default:
 		sqlp = NULL;
 		break;
