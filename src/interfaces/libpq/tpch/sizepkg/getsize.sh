@@ -7,17 +7,20 @@ Q2=47
 
 echo Query#, PTU package, Open-Source DBS LDV package, Proprietary DBS LDV package, Perm Binary, Perm Data
 for j in `seq $Q1 $Q2`; do
-#for j in `seq 30 45`; do
+#for j in `seq 30 47`; do
 i=2
-FULLPKG=`tar tzvf size.run$i.q$j.tgz | awk -v var="$POS" '{s+=$var} END{print (s/1024)}'`
-PERMBIN=`tar tzvf size.run$i.q$j.tgz cde-package/cde-root$PERM | awk -v var="$POS" '{s+=$var} END{print (s/1024)}'`
-PERMDATA=`tar tzvf size.run$i.q$j.tgz cde-package/cde-root$PGDATA | awk -v var="$POS" '{s+=$var} END{print (s/1024)}'`
+FULLPKG=`tar tzvf size.run$i.q$j.tgz | awk -v var="$POS" '{s+=$var} END{printf "%d", (s/1024)}'`
+PERMBIN=`tar tzvf size.run$i.q$j.tgz cde-package/cde-root$PERM | awk -v var="$POS" '{s+=$var} END{printf "%d", (s/1024)}'`
+PERMDATA=`tar tzvf size.run$i.q$j.tgz cde-package/cde-root$PGDATA | awk -v var="$POS" '{s+=$var} END{printf "%d", (s/1024)}'`
 DBCAPTURE=0
-#DBCAPTURE=`tar tzvf size.run$i.q$j.tgz --wildcards "*.dblog" | awk -v var="$POS" '{s+=$var} END{print (s/1024)}'`
+DBCAPTURE=`tar tzvf size.run$i.q$j.tgz --wildcards "*.dblog" | awk -v var="$POS" '{s+=$var} END{printf "%d", (s/1024)}'`
 i=3
-NODBPKG=`tar tzvf size.run$i.q$j.tgz | awk -v var="$POS" '{s+=$var} END{print (s/1024)}'`
-echo `bc <<< $j-$Q1+1`, `bc <<< $FULLPKG-$DBCAPTURE`, \
-	`bc <<< $FULLPKG-$PERMDATA`, `bc <<< $FULLPKG-$PERMDATA-$PERMBIN`, \
+NODBPKG=`tar tzvf size.run$i.q$j.tgz | awk -v var="$POS" '{s+=$var} END{printf "%d", (s/1024)}'`
+#echo $j-$Q1+1, $FULLPKG-$DBCAPTURE, \
+#        $FULLPKG-$PERMDATA, $FULLPKG-$PERMDATA-$PERMBIN, \
+#        $PERMBIN, $PERMDATA
+echo `echo $j-$Q1+1 | bc`, `echo $FULLPKG-$DBCAPTURE | bc`, \
+	`echo $FULLPKG-$PERMDATA | bc`, `echo $FULLPKG-$PERMDATA-$PERMBIN | bc`, \
 	$PERMBIN, $PERMDATA
-	#`bc <<< $FULLPKG-$PERMDATA`, $NODBPKG, \
+#	#`bc <<< $FULLPKG-$PERMDATA`, $NODBPKG, \
 done
