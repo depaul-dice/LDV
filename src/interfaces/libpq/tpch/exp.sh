@@ -1,5 +1,5 @@
 #!/bin/sh
-N=10
+N=100
 #~ export TPCH=3
 
 # start perm
@@ -34,6 +34,7 @@ time -p -a -o time.exp.txt ./single "host=localhost dbname=$DBNAME" 92 1 $TPCH
 
 # select light
 time -p -a -o time.exp.txt ./single "host=localhost dbname=$DBNAME" 92 $N $TPCH
+#wc -l *.dblog
 
 # update
 time -p -a -o time.exp.txt ./single "host=localhost dbname=$DBNAME" 93 $N

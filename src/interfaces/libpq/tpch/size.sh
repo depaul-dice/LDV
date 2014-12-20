@@ -1,4 +1,7 @@
 #!/bin/sh
+export PERM=/local/perm/install/aggperm
+export PGDATA=/local/perm/cluster/qperm
+export DBNAME=tpch_1
 
 filename=testsize.txt
 rm $filename time*.txt
@@ -9,8 +12,8 @@ for i in `seq 30 47`; do
   
   rm *.dblog dblog.txt
   ./run.sh
-  tar czf size.run2.q$i.tgz cde-package *.dblog dblog*
-  mv size.run2.q$i.tgz sizepkg/
+  tar  cf size.run2.q$i.tar cde-package *.dblog dblog*
+  mv size.run2.q$i.tar sizepkg/
   echo run2.q$i | tee -a $filename
   du -s cde-package/cde-root/$PQDATA cde-package/ >> $filename
   wc -c *.dblog | grep total >> $filename
@@ -18,8 +21,8 @@ for i in `seq 30 47`; do
   
   rm *.dblog dblog.txt
   ./run3.sh
-  tar czf size.run3.q$i.tgz cde-package *.dblog dblog*
-  mv size.run3.q$i.tgz sizepkg/
+  tar  cf size.run3.q$i.tar cde-package *.dblog dblog*
+  mv size.run3.q$i.tar sizepkg/
   echo run3.q$i | tee -a $filename
   du -s cde-package/cde-root/$PQDATA cde-package/ >> $filename
   wc -c *.dblog | grep total >> $filename

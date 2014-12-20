@@ -1,5 +1,10 @@
 #!/bin/sh
 
+export PERM=/local/perm/install/aggperm
+export DBNAME=tpch_1
+export PGDATA=/local/perm/cluster/qperm
+export PTUBIN=/home/quan/ptu/ptu
+
 ### prepare clean db and newest binary
 rm -rf cde-package 2>/dev/null
 cp single query
@@ -19,11 +24,11 @@ cd $PERM
 killall psql 2>/dev/null
 bin/pg_ctl stop -D data 2>/dev/null
 killall postgres
-rm -rf data 2>/dev/null
-tar xzf $oldpath/data.tpch.notpoked.tgz
+rm -rf $PGDATA 2>/dev/null
+cp -r $PGDATA.std $PGDATA
 
 rm logfile
-bin/pg_ctl start -D data -l logfile
+bin/pg_ctl start -D $PGDATA -l logfile
 sleep 6
 
 cd $oldpath
@@ -37,9 +42,9 @@ rm *.dblog 2>/dev/null
 
 NC=`grep real time.exp.txt | wc -l`
 NC=`expr $NC + 1`
-time -p -a -o time.exp.txt ./single "host=localhost dbname=quanpt" 95 1
+time -p -a -o time.exp.txt ./single "host=localhost dbname=$DBNAME" 95 1
 grep real time.exp.txt | tail -n +$NC
 
 # stop perm
 cd $PERM
-bin/pg_ctl stop -D data > /dev/null 2>&1
+bin/pg_ctl stop -D $PGDATA > /dev/null 2>&1

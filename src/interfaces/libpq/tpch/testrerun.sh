@@ -15,10 +15,12 @@ fi
 
 echo run3.sh
 for i in `seq $N`; do
-  ./run3.sh
+  ###./run3.sh
   true
 done
-tar  cf size.run3.q$TPCH.tar cde-package *.txt *dblog*
+#tar  cf run3.N$N.TPCH$TPCH.tar cde-package *.txt
+rm -rf cde-package *.dblog dblog.txt
+tar xzf sizepkg/size.run3.q$TPCH.tgz
 cp time.exp.txt time.exp.ptumode31.txt
 rm time.exp.txt time.run.txt
 
@@ -28,7 +30,7 @@ for i in `seq $N`; do
   ./rcde3.sh
   true
 done
-tar  cf rsize.run3.q$TPCH.tar cde-package *.txt *dblog*
+tar  cf rcde3.N$N.TPCH$TPCH.tar *.txt
 mv cde-package/cde-root/$cwd/time.exp.txt time.exp.ptumode32.txt
 rm time.exp.txt time.run.txt
 
@@ -36,7 +38,7 @@ rm time.exp.txt time.run.txt
 #==== case 0 ====
 echo normal.sh
 for i in `seq $N`; do
-  ./normal.sh
+  ###./normal.sh
   true
 done
 mv time.exp.txt time.exp.origin.txt
@@ -44,7 +46,7 @@ mv time.exp.txt time.exp.origin.txt
 #==== case 00 - pure ptu ====
 echo normal.sh
 for i in `seq $N`; do
-  ./ptu.sh
+  ###./ptu.sh
   true
 done
 mv time.exp.txt time.exp.ptupure.txt
@@ -52,10 +54,12 @@ mv time.exp.txt time.exp.ptupure.txt
 #==== case 2 ====
 echo run.sh
 for i in `seq $N`; do
-  ./run.sh
+  ###./run.sh
   true
 done
-tar  cf size.run2.q$TPCH.tar cde-package *.txt *dblog*
+#tar  cf run.N$N.TPCH$TPCH.tar cde-package *.txt
+rm -rf cde-package *.dblog dblog.txt
+tar xzf sizepkg/size.run2.q$TPCH.tgz
 cp time.exp.txt time.exp.ptumode21.txt
 echo > time.exp.txt
 
@@ -65,7 +69,7 @@ for i in `seq $N`; do
   ./rcde.sh
   true
 done
-tar  cf rsize.run2.q$TPCH.tar cde-package *.txt *dblog*
+tar  cf rcde.N$N.TPCH$TPCH.tar *.txt
 mv cde-package/cde-root/$cwd/time.exp.txt time.exp.ptumode22.txt
 
 

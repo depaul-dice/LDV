@@ -28,7 +28,7 @@ export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=21
 export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
-rm *.dblog 2>/dev/null
+rm *.dblog *dblog* 2>/dev/null
 
 NC=`grep real time.exp.txt | wc -l`
 NC=`expr $NC + 1`

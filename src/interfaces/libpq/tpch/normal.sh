@@ -16,10 +16,10 @@ fi
 # prepare original database
 cd $PERM
 killall psql 2>/dev/null
-bin/pg_ctl stop -D data 2>/dev/null
+bin/pg_ctl stop -D $PGDATA 2>/dev/null
 killall postgres
 rm -rf $PGDATA 2>/dev/null
-cp -r $PGDATA.std $PGDATA
+cp -r $PGDATA.std.nooid $PGDATA
 cd $oldpath
 
 ### start
