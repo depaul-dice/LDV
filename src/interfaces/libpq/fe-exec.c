@@ -976,11 +976,11 @@ void prv_storeTable(PGconn* conn, char* tablename) {
 void prv_storeTupleFromResult(char* tablename, PGresult *result, char* queryid, bool storeRow);
 void prv_storeTupleFromResult(char* tablename, PGresult *result, char* queryid, bool storeRow) {
 	int r, n, nrows, nfields;
-	char values[STR_LONG_LEN], *rowid, *version;
+	char values[STR_LONG_LEN], tuple[STR_LONG_LEN], *rowid, *version;
 	nrows = PQntuples ( result );
 	nfields = PQnfields ( result );
 
-	// prepare field name list
+	// prepare field name listvalues[STR_LONG_LEN], values[STR_LONG_LEN], 
 //	fields[0] = 0;
 //	strcat(fields, "(");
 //	for ( n = 0; n < nfields; n++ ) {
@@ -996,18 +996,22 @@ void prv_storeTupleFromResult(char* tablename, PGresult *result, char* queryid, 
 		strcat(values, "('");
 		for ( n = 0; n < nfields; n++ ) {
 			strcat(values, PQgetvalue ( result, r, n ));
+			if (n == nfields - 5) { // _prov_p column
+				strcat(values, "')");
+				rowid = PQgetvalue ( result, r, nfields - 1); // _prov_rowid column
+				prv_storeTuple(queryid, rowid, values);
+				values[strlen(values) - 2] = 0;
+			}
 			if (n < nfields - 1) {
 				strcat(values, "', '");
 			} else
 				strcat(values, "')");
 		}
-		rowid = PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") );
 		if (storeRow) {
 			fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
 					rowid, tablename);
 			fprintf(f_out_dblog, "INSERT INTO %s VALUES %s;\n", tablename, values);
 		}
-		prv_storeTuple(queryid, rowid, values);
 	}
 }
 

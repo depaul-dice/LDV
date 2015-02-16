@@ -287,27 +287,31 @@ def printGraph(pidqueue, f1, f2):
 def printSelectNodeEdge(pidkey, queryid, sql, time, f1):
   node = queryid+'.'+str(time)
   label = node + '\\n ' + sql.replace('"','\\"')
-  f1.write(pidkey + '->' + node + '[label=used];' + \
-    node + '[label="' + label + '" tooltip="' + label + '"];' + \
+  f1.write(pidkey + '->' + node + '[label=used];\n' + \
+    node + '[label="' + label + '" tooltip="' + label + '"];\n' + \
     '{rank=same; ' + node + '; ' + str(time) + ';}\n')
   timeline.append(time)
-  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.rowid.', key_to='prv.db.'+pidkey+'.selectid.rowid.zzz'):
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.rowid.'+queryid+'.', key_to='prv.db.'+pidkey+'.selectid.rowid.'+queryid+'.zzz'):
     f1.write(node + '->' + v + '[label=used]\n')
   
 def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
   global timeline
   node = insertid+'.'+version
   label = node + '\\n ' + sql.replace('"','\\"')
-  f1.write(node + '->' + pidkey + '[label=wasGeneratedBy];' + \
-    node + '[label="' + label + '" tooltip="' + label + '"];' + \
+  f1.write(node + '->' + pidkey + '[label=wasGeneratedBy];\n' + \
+    node + '[label="' + label + '" tooltip="' + label + '"];\n' + \
     '{rank=same; ' + node + '; ' + str(time) + ';}\n')
   timeline.append(time)
 
 def printTupleNodeEdge(queryid, rowid, value, f1):
   node = rowid
   label = node + '\\n ' + value.replace('"','\\"')
-  f1.write(node + '->' + queryid+'.1' + '[label=wasGeneratedBy];' + \
+  if queryid != 'originalDB':
+    queryid = queryid+'.1'
+  f1.write(node + '->' + queryid + '[label=wasGeneratedBy];' + \
     node + '[label="' + label + '" tooltip="' + label + '"];\n')
+  if queryid != 'originalDB':
+    f1.write('{rank=same; ' + node + '; ' + queryid + ';}\n')
 
 def getPidFromKey(pidkey):
   return pidkey.split('.')[0]
