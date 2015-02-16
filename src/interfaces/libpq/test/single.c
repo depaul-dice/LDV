@@ -133,7 +133,8 @@ int main(int argc, char** argv) {
           doSQL ( conn, "DELETE FROM tbl1 WHERE value = 3;");
         } else {
           doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value < 40" );
-          doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
+          doSQL ( conn, "SELECT sum(value) FROM tbl1 WHERE value > 100" );
+          //doSQL ( conn, "select name, sum(price) from items i, persons p, sales s where p.id = s.personid and s.itemid = i.id group by name;");
           fakewrite(seed);
           // doSQL ( conn, "SELECT id, value FROM tbl1 WHERE value < 50" );
           // doSQL ( conn, "SELECT * FROM tbl1" );

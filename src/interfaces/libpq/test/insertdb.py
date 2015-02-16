@@ -28,14 +28,24 @@ for line in fileinput.input():
             pidkey = db.Get('pid.'+tokens[PIDKEY])
             db.Put('prv.db.'+pidkey+'.selectid.sql.'+ tokens[QUERYID]+'.'+tokens[USEC], tokens[SQL])
             ids = tokens[INSERTIDS].split('.');
-            if len(ids) > 0:
-                for i in range(len(ids)/2):
-                    (insertid, version) = ids[2*i:2*i+2]
-                    db.Put('prv.db.'+pidkey+'.selectid.insertid.'+ tokens[QUERYID]+'.'+tokens[USEC]+'.'+str(i), \
-                        insertid + '.' + version)
+            for i in range(len(ids)):
+                db.Put('prv.db.'+pidkey+'.selectid.rowid.'+ tokens[QUERYID]+'.'+tokens[USEC]+'.'+str(i), ids[i])
+            # if len(ids) > 0:
+            #     for i in range(len(ids)/2):
+            #         (insertid, version) = ids[2*i:2*i+2]
+            #         db.Put('prv.db.'+pidkey+'.selectid.insertid.'+ tokens[QUERYID]+'.'+tokens[USEC]+'.'+str(i), \
+            #             insertid + '.' + version)
         except KeyError:
             print "pidkey for " + tokens[PIDKEY] + " not found!"
-        
+    if tokens[ACTION] == 'prv_store_tuple':
+        # 'prv_store_tuple  14983   2221643613338354282 16428   ('49', '24', '2221643613338354282', '1001', '2015-02-16 20:22:35.6869', '16428')'
+        (_, PIDKEY, QUERYID, ROWID, TUPLE) = range(0, 5)
+        try:
+            pidkey = db.Get('pid.'+tokens[PIDKEY])
+            db.Put('prv.db.'+pidkey+'.insertid.rowid.'+tokens[QUERYID]+'.'+tokens[ROWID], tokens[TUPLE])
+        except KeyError:
+            print "pidkey for " + tokens[PIDKEY] + " not found!"
+        pass
     
     
 #~ for (k,v) in db.RangeIter():

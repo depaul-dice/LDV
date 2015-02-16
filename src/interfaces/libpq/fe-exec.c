@@ -901,8 +901,17 @@ void prv_storeConnection(PGconn* conn) {
 	}
 }
 
-void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
-void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql) {
+
+void prv_storeTuple(char* queryid, char* tupleid, const char* tuple);
+void prv_storeTuple(char* queryid, char* tupleid, const char* tuple) {
+	fprintf(f_out_dblog, "prv_store_tuple\t%d\t%s\t%s\t%s\n",
+			getpid(), queryid, tupleid, tuple);
+}
+
+void prv_storeInsert(char* insertid, int version, uint64_t timeus, 
+	const char* sql);
+void prv_storeInsert(char* insertid, int version, uint64_t timeus, 
+	const char* sql) {
 	fprintf(f_out_dblog, "prv_store_insert\t%d\t%s\t%d\t%lu\t%s\n",
 			getpid(), insertid, version, timeus, sql);
 }
@@ -964,10 +973,10 @@ void prv_storeTable(PGconn* conn, char* tablename) {
 	fprintf(f_out_dblog, "prv_store_table\t%s\n", sqltable);
 }
 
-void prv_storeTuple(char* tablename, PGresult *result);
-void prv_storeTuple(char* tablename, PGresult *result) {
+void prv_storeTupleFromResult(char* tablename, PGresult *result, char* queryid, bool storeRow);
+void prv_storeTupleFromResult(char* tablename, PGresult *result, char* queryid, bool storeRow) {
 	int r, n, nrows, nfields;
-	char values[STR_LONG_LEN];
+	char values[STR_LONG_LEN], *rowid, *version;
 	nrows = PQntuples ( result );
 	nfields = PQnfields ( result );
 
@@ -992,13 +1001,17 @@ void prv_storeTuple(char* tablename, PGresult *result) {
 			} else
 				strcat(values, "')");
 		}
-		fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
-				PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") ),
-				tablename);
-		fprintf(f_out_dblog, "INSERT INTO %s VALUES %s;\n", tablename, values);
+		rowid = PQgetvalue ( result, r, PQfnumber(result, "_prov_rowid") );
+		if (storeRow) {
+			fprintf(f_out_dblog, "prv_store_row\t%s\t%s\t",
+					rowid, tablename);
+			fprintf(f_out_dblog, "INSERT INTO %s VALUES %s;\n", tablename, values);
+		}
+		prv_storeTuple(queryid, rowid, values);
 	}
 }
 
+/*
 void prv_store_row(ids4table_t *head, PGconn* conn);
 void prv_store_row(ids4table_t *head, PGconn* conn) {
 	char sql[STR_LONG_LEN], values[STR_LONG_LEN];
@@ -1022,10 +1035,10 @@ void prv_store_row(ids4table_t *head, PGconn* conn) {
 		// "AND _prov_rowid LIKE any(string_to_array('%s',',')) "
 		// "AND (%s) "
 		result = PQexecSingle(conn, sql);
-		prv_storeTuple(tablename, result);
+		prv_storeTupleFromResult(tablename, result, TRUE);
 		PQclear(result);
 	}
-}
+}*/
 
 ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn);
 ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
@@ -1087,8 +1100,8 @@ ids4table_t* prv_getRowIds(PGresult *result, PGconn* conn) {
 	return head;
 }
 
-void prv_extractTuple(PGconn* conn, char* tablename, char* view);
-void prv_extractTuple(PGconn* conn, char* tablename, char* view) {
+void prv_extractTuple(PGconn* conn, char* queryid, char* tablename, char* view);
+void prv_extractTuple(PGconn* conn, char* queryid, char* tablename, char* view) {
 	char sql[STR_LONG_LEN];
 	PGresult *result;
 	int restatus;
@@ -1104,7 +1117,7 @@ void prv_extractTuple(PGconn* conn, char* tablename, char* view) {
 	result = PQexecSingle(conn, sql);
 	restatus = PQresultStatus(result);
 	if (restatus == PGRES_TUPLES_OK) {
-		prv_storeTuple(tablename, result);
+		prv_storeTupleFromResult(tablename, result, queryid, TRUE);
 		PQclear(result);
 	} else {
 		printf("status is %s\n", PQresStatus(restatus));
@@ -1207,7 +1220,7 @@ void prv_extractInsertIds(PGconn* conn, char* tablename, char* view, char* inser
 	PGresult *result;
 	int restatus;
 	sprintf(sql,
-			"SELECT DISTINCT prov_public_%s___prov__p FROM %s",
+			"SELECT DISTINCT prov_public_%s___prov__rowid FROM %s",
 			tablename, view);
 	result = PQexecSingle(conn, sql);
 	restatus = PQresultStatus(result);
@@ -1218,11 +1231,10 @@ void prv_extractInsertIds(PGconn* conn, char* tablename, char* view, char* inser
 				if (insertIds[0] != 0)
 					strcat(insertIds, ".");
 				strcat(insertIds, PQgetvalue ( result, r, 0 ));
-				strcat(insertIds, ".1");
 			} else if (!*useDB) {
 				if (insertIds[0] != 0)
 					strcat(insertIds, ".");
-				strcat(insertIds, "original.database"); // point to existing tuples
+				strcat(insertIds, "originalDB"); // point to existing tuples
 				*useDB = 1;
 			}
 		}
@@ -1255,7 +1267,7 @@ char* prv_extractTuplesFromTable(PGconn* conn, char* tablelist,
 		strncpy(tablename, tablelist, space - tablelist);
 		tablename[space - tablelist] = 0;
 		prv_storeTable(conn, tablename);
-		prv_extractTuple(conn, tablename, view);
+		prv_extractTuple(conn, "originalDB", tablename, view);
 		prv_extractInsertIds(conn, tablename, view, insertids, &useDB);
 		if (comma == NULL)
 			break;
@@ -2354,9 +2366,9 @@ PQexec(PGconn *conn, const char *query)
 {
 	char queryid[40], *insertids;
 	uint64_t timeus;
-	PGresult *result;
+	PGresult *result, *result_getid;
 	int type = -1, n, i;
-	char tablename[256];
+	char tablename[256], sql[STR_MAX_LEN];
 	char *prov_query, lastchar;
 
 	if (DB_MODE == 0 || DB_MODE == 11 || DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
@@ -2379,6 +2391,13 @@ PQexec(PGconn *conn, const char *query)
 		if (type == INSERT_STMT) {
 			prv_modifyTable(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
+			// TODO: store error of the insert stmt
+			sprintf(sql, "UPDATE %s SET _prov_rowid = OID WHERE _prov_p = '%s' returning *;",
+				tablename, queryid);
+			result_getid = PQexecSingle(conn, sql);
+			prv_storeTupleFromResult(tablename, result_getid, queryid, FALSE);
+			PQclear(result_getid);
+			// TODO: restore error of the insert stmt
 		} else if (type == UPDATE_STMT || type == DELETE_STMT) {
 			prv_modifyTableList(conn, tablename);
 			result = PQexecSingle(conn, prov_query);
