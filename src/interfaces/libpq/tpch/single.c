@@ -64,7 +64,7 @@ void insert(PGconn *conn) {
 
 void update(PGconn *conn);
 void update(PGconn *conn) {
-	static char sqlStr[1000];
+    static char sqlStr[1000];
     sprintf(sqlStr, "UPDATE orders SET o_comment=md5((random())::text) WHERE o_orderkey=%d", rand() % MYMAGICN);
     doSQL(conn, sqlStr);
 }
@@ -137,8 +137,8 @@ void doselect(PGconn *conn, int tpchquery) {
 //                "    s_address,"
 //                "    s_phone,"
 //                "    s_comment"
-//        		" from part, supplier, partsupp"
-//        		" where"
+//                " from part, supplier, partsupp"
+//                " where"
 //                "    p_partkey = ps_partkey"
 //                "    and s_suppkey = ps_suppkey";
         break;

@@ -799,7 +799,7 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 			restatus = PQresultStatus(result);
 			if (!iamtheone && restatus != PGRES_COMMAND_OK) {
 				logdb("stop, status is %s\n", PQresStatus(restatus));
-				return;
+				break;
 			} else {
 				iamtheone = 1;
 			}
@@ -812,6 +812,21 @@ void prv_restoretable(PGconn *conn, FILE *f_in) {
 			PQexecSingle(conn, start);
 		}
 	}
+
+	if (iamtheone) {
+		rewind(f_in_dblog);
+		prv_restoreDbState(conn, f_in_dblog);
+	}
+}
+
+void prv_restoreDbState(PGconn *conn, FILE *f_in);
+void prv_restoreDbState(PGconn *conn, FILE *f_in) {
+	// TODO:
+	// + read the f_in for prv_store_insert and prv_store_update
+	//       with time less than PTU_DB_STATE_TIME
+	// + sort the insert and update by time asc
+	// + re-execute those insert and update to move the db state
+	//       to right before PTU_DB_STATE_TIME
 }
 
 void prv_restoredb(char *conninfo) {
@@ -889,6 +904,12 @@ void prv_storeConnection(PGconn* conn) {
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql);
 void prv_storeInsert(char* insertid, int version, uint64_t timeus, const char* sql) {
 	fprintf(f_out_dblog, "prv_store_insert\t%d\t%s\t%d\t%lu\t%s\n",
+			getpid(), insertid, version, timeus, sql);
+}
+
+void prv_storeUpdate(char* insertid, int version, uint64_t timeus, const char* sql);
+void prv_storeUpdate(char* insertid, int version, uint64_t timeus, const char* sql) {
+	fprintf(f_out_dblog, "prv_store_update\t%d\t%s\t%d\t%lu\t%s\n",
 			getpid(), insertid, version, timeus, sql);
 }
 
@@ -1384,6 +1405,7 @@ char *prv_assembleQuery(const char *query, char* queryid, int version,
 			strcat(result, " WHERE ");
 			strcat(result, where);
 		}
+		prv_storeUpdate(queryid, version, timeus, query);
 		break;
 	case DELETE_STMT:
 		result = malloc(STR_MAX_LEN);
@@ -2335,7 +2357,7 @@ PQexec(PGconn *conn, const char *query)
 	PGresult *result;
 	int type = -1, n, i;
 	char tablename[256];
-	char *prov_query;
+	char *prov_query, lastchar;
 
 	if (DB_MODE == 0 || DB_MODE == 11 || DB_MODE == 22 || DB_MODE == 31 || DB_MODE == 32)
 		return PQexecSingle(conn, query);
@@ -2344,12 +2366,14 @@ PQexec(PGconn *conn, const char *query)
 	if (prov_query != NULL) {
 		logdb("db: %d %s %s\n", type, tablename, prov_query);
 		// fixed tab and space in table list
-		n = 0; i = 0;
+		n = 0; i = 0; lastchar=',';
 		while (tablename[n]!=0) {
-			if (tablename[n]=='\t' || tablename[n]==' ') {
+			if ((tablename[n]=='\t' || tablename[n]==' ') && lastchar == ',') {
 				n++;
-			} else
+			} else {
+				lastchar = tablename[n];
 				tablename[i++] = tablename[n++];
+			}
 		}
 		tablename[i] = 0;
 		if (type == INSERT_STMT) {

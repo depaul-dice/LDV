@@ -20,7 +20,7 @@ SO_MAJOR_VERSION= 5
 SO_MINOR_VERSION= 1
 DLTYPE= library
 
-override CPPFLAGS := -pg -DFRONTEND -I$(srcdir) $(CPPFLAGS) -I$(top_builddir)/src/port
+override CPPFLAGS := -DFRONTEND -I$(srcdir) $(CPPFLAGS) -I$(top_builddir)/src/port
 ifneq ($(PORTNAME), win32)
 override CFLAGS += $(PTHREAD_CFLAGS)
 endif
@@ -70,7 +70,6 @@ all: def-files $(srcdir)/libpq.rc all-lib
 	$(MAKE) -C test $@
 	$(MAKE) -C bigtest $@
 	$(MAKE) -C tpch $@
-	$(MAKE) -C tpch1g/code $@
 
 # Shared library stuff
 include $(top_srcdir)/src/Makefile.shlib

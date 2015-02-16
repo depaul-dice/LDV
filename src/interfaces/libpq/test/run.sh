@@ -18,13 +18,14 @@ fi
 cd $PERM
 killall psql
 bin/pg_ctl stop -D data
-rm -rf data
+rm -rf data logfile
 tar xzf $oldpath/data.startup.tgz
 cd $oldpath
 
 ### start
 export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=21
+export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
 rm *.dblog
 #~ ./exp.sh
