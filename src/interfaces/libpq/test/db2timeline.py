@@ -286,7 +286,7 @@ def printGraph(pidqueue, f1, f2):
 
 def printSelectNodeEdge(pidkey, queryid, sql, time, f1):
   node = queryid+'.'+str(time)
-  label = node + '\\n ' + sql.replace('"','\\"')
+  label = sql.replace('"','\\"')
   f1.write(pidkey + '->' + node + '[label=used];\n' + \
     node + '[label="' + label + '" tooltip="' + label + '"];\n' + \
     '{rank=same; ' + node + '; ' + str(time) + ';}\n')
@@ -297,7 +297,7 @@ def printSelectNodeEdge(pidkey, queryid, sql, time, f1):
 def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
   global timeline
   node = insertid+'.'+version
-  label = node + '\\n ' + sql.replace('"','\\"')
+  label = sql.replace('"','\\"')
   f1.write(node + '->' + pidkey + '[label=wasGeneratedBy];\n' + \
     node + '[label="' + label + '" tooltip="' + label + '"];\n' + \
     '{rank=same; ' + node + '; ' + str(time) + ';}\n')
