@@ -146,7 +146,7 @@ def main():
   for t in timeline:
     fout.write('"'+str(t)+'" -> ')
   fout.write('future;}')
-  fout.write('{rank=same; "'+rootpid+'"; past;}')
+  fout.write('{rank=same; "'+rootpid+'"; past; originalDB}')
 
   # done
   db.Put('meta.nomalized', '1')
@@ -310,8 +310,7 @@ def printTupleNodeEdge(queryid, rowid, value, f1):
     queryid = queryid+'.1'
   f1.write(node + '->' + queryid + '[label=wasGeneratedBy];' + \
     node + '[label="' + label + '" tooltip="' + label + '"];\n')
-  if queryid != 'originalDB':
-    f1.write('{rank=same; ' + node + '; ' + queryid + ';}\n')
+  f1.write('{rank=same; ' + node + '; ' + queryid + ';}\n')
 
 def getPidFromKey(pidkey):
   return pidkey.split('.')[0]
