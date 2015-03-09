@@ -1,44 +1,29 @@
 #!/usr/bin/env python
 
 import random, json
+from publication import Publication
 
-class Publication:
-	counter = 1
-	def __init__(self, date, authors, info, keyword):
-		self.id = "id_" + str(Publication.counter)
-		Publication.counter += 1
-		self.date = date
-		self.authors = authors
-		self.info = info
-		self.keyword = keyword
-
-	def __repr__(self):
-		return str([self.id, self.date, self.authors, self.info])
-
-	def jsonInfo(self):
-		return [self.id, self.date, self.authors, self.info]
-
-	def jsonKeyword(self):
-		return [self.id, self.date, self.keyword]
-
-def randList(aList):
+def randList(aList, length = None):
 	n = len(aList) - 1
-	return [aList[i] for i in list(set([random.randint(0, n) for j in range(random.randint(1,n))]))]
+	if length is None:
+		length = n
+	return [aList[i] for i in list(set([random.randint(0, n) for j in range(random.randint(1,length))]))]
 
 def randAuthor(authors):
 	return randList(authors)
 
 def randKeywork(keywords):
-	return randList(keywords)
+	return randList(keywords, 3)
 
 def main():
-	random.seed(1)
-	authors = ["Alice", "Bob", "Charlie", "Dave"]
+	random.seed(3)
+	authors = ["Alice", "Bob", "Anna", "Billy"]
 	keywords = ["file", "memory", "disk", "cpu", "os", "network", "cloud"]
-	dates = [2001, 2001, 2001, 2002, 2002, 2003, 2003, 2003]
+	dates = [2001, 2001, 2001, 2002, 2002]
 	pubs = [Publication(str(date), randAuthor(authors), "info " + str(random.randint(1,100)), randKeywork(keywords)) for date in dates]
-	# print(authors)
-	# print(pubs)
+	print(authors)
+	for p in pubs:
+		print p
 
 	for date in set(dates):
 		f = open("info_" + str(date) + ".txt", "w")

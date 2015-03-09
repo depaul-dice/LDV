@@ -1,8 +1,7 @@
 #!/bin/sh
 
 ### prepare clean db and newest binary
-rm -rf cde-package
-cp single query
+rm -rf cde-package *.dblog author_*.txt info_*.txt keyword_*.txt
 oldpath=`pwd`
 if [ "$PERM" = "" ]
 then
@@ -27,7 +26,6 @@ export PTU_DBSESSION_ID=1001
 export PTU_DB_MODE=21
 export LD_LIBRARY_PATH=../
 unset PTU_DB_REPLAY
-rm *.dblog
 #~ ./exp.sh
 ~/assi/cde/ptu $@ ./exp.sh
 
@@ -46,3 +44,4 @@ cat dblog.txt | python insertdb.py
 #~ cat 99.log | python insertdb.py
 #~ cat 0.log | python insertdb.py
 ./db2timeline.py -f cde-package/provenance.cde-root.1.log -d gv2 >/dev/null 2>&1
+./db2dot.py -f cde-package/provenance.cde-root.1.log -d gv1 > /dev/null 2>&1

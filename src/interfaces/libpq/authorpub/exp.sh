@@ -17,13 +17,9 @@ cd $oldpath
 sleep 3
 
 # start clients
-#./single "host=localhost dbname=single" 100 2>100.log &
-./single "host=localhost dbname=single" 99 &
-./single "host=localhost dbname=single" 98 &
-
-# start query
-sleep 6 && ./query "host=localhost dbname=single" 0
-#sleep 6 && gdb ./query
+python ./prepareData.py
+python ./dispatch.py
+python ./queryData.py
 
 # stop perm
 sleep 1
