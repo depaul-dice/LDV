@@ -40,10 +40,7 @@ cd cde-package/cde-root/$PERM
 bin/pg_ctl stop -D data >/dev/null 2>&1
 rm -rf data
 $PERM/bin/initdb -D data >/dev/null 2>&1
-bin/pg_ctl start -D data -l /dev/null >/dev/null 2>&1
-sleep 3
-$PERM/bin/createdb gitdb >/dev/null 2>&1
-bin/pg_ctl stop -D data >/dev/null 2>&1
+chmod -R go-rx data
 cd $oldpath
 
 ### post-process db for indirect (spawn) links

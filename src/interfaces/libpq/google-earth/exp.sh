@@ -21,8 +21,8 @@ sleep 3
 # start clients
 echo "=== Start experiment ==="
 python ./extractkml.py
-#/usr/bin/google-earth $PWD/output.kml >/dev/null 2>&1
-#rm $PWD/output.kml
+/usr/bin/google-earth $PWD/output.kml >/dev/null 2>&1
+rm $PWD/output.kml
 
 # stop perm
 

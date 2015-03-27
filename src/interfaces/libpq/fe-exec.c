@@ -859,7 +859,7 @@ void prv_restoredb(char *conninfo) {
 		} else {
 			strncpy(dbname, start, end - start);
 			dbname[end - start] = 0;
-			strcpy(new_conninfo, end);
+			strcat(new_conninfo, end);
 		}
 		logdb("dbname '%s' - conn '%s'\n", dbname, new_conninfo);
 
