@@ -26,9 +26,11 @@ cd $oldpath
 export PTU_DB_REPLAY=dblog.txt
 export PTU_DB_MODE=22
 #~ ./exp.sh
+export LD_LIBRARY_PATH=../
 ./exp.sh
 exit
 
 # real re-run
+export PTU_DB_REPLAY=/dblog.txt
 cd cde-package
 sh cde.log
