@@ -2,15 +2,7 @@
 
 # start perm
 oldpath=`pwd`
-if [ "$PERM" = "" ]
-then
-	if [ `hostname` = "qpc" ]
-	then
-	  PERM=/home/quanpt/myapps/perm
-	else
-	  PERM=/var/tmp/quanpt/froot/perm
-	fi
-fi
+PERM=/home/quanpt/myapps/perm
 
 echo "=== Start perm ==="
 cd $PERM

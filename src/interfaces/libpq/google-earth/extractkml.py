@@ -43,7 +43,7 @@ KML_PLACEMARK = """      <Style id="placemark_{shortname}">
 
 def main():
     #Define our connection string
-    conn_string = "host=localhost dbname=gitdb user=quanpt password=secret"
+    conn_string = "host=localhost dbname=gitdb user=quanpt password=secret port=54320"
  
     # get a connection, if a connect cannot be made an exception will be raised here
     conn = psycopg2.connect(conn_string)

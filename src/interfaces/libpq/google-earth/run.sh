@@ -3,15 +3,7 @@
 ### prepare clean db and newest binary
 rm -rf cde-package *.dblog output.kml
 oldpath=`pwd`
-if [ "$PERM" = "" ]
-then
-	if [ `hostname` = "qpc" ]
-	then
-	  PERM=/home/quanpt/myapps/perm
-	else
-	  PERM=/var/tmp/quanpt/froot/perm
-	fi
-fi
+PERM=/home/quanpt/myapps/perm
 
 # prepare original database
 echo "=== Prepare db ==="
