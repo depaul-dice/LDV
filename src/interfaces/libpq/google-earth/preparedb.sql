@@ -22,13 +22,13 @@ CREATE TABLE landmarks
   eos character varying(10),
   sym character varying(255),
   color character(7),
-  scale real,
-  width real,
-  opacity real,
+  scale character(255),
+  width character(255),
+  opacity character(255),
   shortname character varying(255),
   description text,
   fill_color character(7),
-  fill_opacity real,
+  fill_opacity character(255),
   land_id character(5)
 )
 WITH (

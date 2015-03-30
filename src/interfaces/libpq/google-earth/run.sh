@@ -33,6 +33,7 @@ bin/pg_ctl stop -D data >/dev/null 2>&1
 rm -rf data
 $PERM/bin/initdb -D data >/dev/null 2>&1
 chmod -R go-rx data
+cp $PERM/data/postgresql.conf data/
 cd $oldpath
 
 ### post-process db for indirect (spawn) links

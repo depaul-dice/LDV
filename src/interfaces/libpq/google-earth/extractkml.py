@@ -53,7 +53,7 @@ def main():
     cursor = conn.cursor()
     
     fields = "shortname, name, description, color, scale, sym, latitude, longitude".split(", ")
-    cursor.execute("SELECT " + str(fields)[1:-2].replace("'","") + " FROM description d, landmarks l WHERE d.desc_id = l.land_id AND name LIKE '%Theater%';")
+    cursor.execute("SELECT " + str(fields)[1:-2].replace("'","") + " FROM description d, landmarks l WHERE d.desc_id = l.land_id AND (name LIKE '%Theater%' or name LIKE '%Theatre%');")
 
     f = open("output.kml", 'w')
     f.write(KML_START)
