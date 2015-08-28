@@ -20,13 +20,6 @@ epoch = datetime(1970, 1, 1)
 timeline = []
 
 def isFilteredPath(path):
-  filters = ['/proc/', '.*/lib/', '/etc/', '/var/', '/dev/', '/sys/', '/usr/share/', \
-    '/home/[a-z]*/myapps/perm/', '/home/[a-z]*/permdir/', '/opt/google/', \
-    '/home/[a-z]*/.config/Google/']
-  for f in filters:
-    if re.match(f.replace('\\', '\\/'), path) is None:
-      return False
-  return True
 
   if re.match('\/proc\/', path) is None \
     and re.match('.*\/lib\/', path) is None \
@@ -315,7 +308,7 @@ def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
 
 def printTupleNodeEdge(queryid, rowid, value, f1):
   node = rowid
-  label = node + '\\n ' + value.replace('"','\\"')
+  label = node + '\\n ' + value.replace('"','\\"').replace('  ','')
   if queryid != 'originalDB':
     queryid = queryid+'.1'
   f1.write(node + '->' + queryid + '[label=wasGeneratedBy];' + \
